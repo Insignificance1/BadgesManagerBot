@@ -4,9 +4,10 @@ import cv2
 from rembg import remove
 from PIL import Image
 
+
 def segment_image(image_path, photo_id):
     # Загрузка изображения
-    model = YOLO('../.venv/v2-430photo-5ep.pt')
+    model = YOLO('../v3-965photo-100ep.pt')
     image = cv2.imread(image_path)
     results = model(image)[0]
 
@@ -18,14 +19,14 @@ def segment_image(image_path, photo_id):
 
     # Подготовка словаря для группировки результатов по классам
     grouped_objects = {}
-    
+
     # Группировка результатов
     for class_id, box in zip(classes, boxes):
         class_name = classes_names[int(class_id)]
         if class_name not in grouped_objects:
             grouped_objects[class_name] = []
         grouped_objects[class_name].append(box)
-        
+
     # Сохранение данных в текстовый файл РЕАЛИЗОВАТЬ СОХРАНЕНИЕ В БД
     text_file_path = f"../Photo/temp/{photo_id}.txt"
     with open(text_file_path, 'w') as f:

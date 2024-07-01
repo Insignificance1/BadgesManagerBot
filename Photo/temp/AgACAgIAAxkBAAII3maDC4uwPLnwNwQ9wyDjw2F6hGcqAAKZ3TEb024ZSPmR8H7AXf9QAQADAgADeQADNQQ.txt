@@ -1,0 +1,4 @@
+badges:
+Coordinates: (129, 1029, 297, 1202)
+Coordinates: (136, 879, 267, 1012)
+Coordinates: (313, 1039, 484, 1210)
