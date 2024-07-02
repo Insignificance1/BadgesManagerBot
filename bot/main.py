@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import os
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
@@ -89,16 +90,19 @@ async def count_handler(message: Message, state: FSMContext) -> None:
 
 @dp.message(F.text == "Нарезать на отдельные значки", States.function_photo)
 async def cut_handler(message: Message, state: FSMContext) -> None:
+    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
     # Отправка нарезанных изображений
     data = await state.get_data()
     image_path = data.get('image_path')
     photo_id = data.get('photo_id')
     text_file_path, num_objects = segmenter.segment_image(image_path, photo_id)
+    await state.update_data(num_objects=num_objects)
     # Временная функция отправки нарезанных значков без фона
     for idx in range(num_objects):
         cropped_img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
         photo_cropped = FSInputFile(cropped_img_path)
         await bot.send_photo(chat_id=message.chat.id, photo=photo_cropped)
+    loading_task.cancel()
     await message.answer("Коллекция полная?", reply_markup=keyboard.yes_no_menu)
 
 
@@ -107,18 +111,24 @@ async def yes_handler(message: Message, state: FSMContext) -> None:
     await state.set_state(States.all_collection_create)
     await message.answer("Введите название коллекции.", reply_markup=keyboard.collection_menu)
 
-
 @dp.message(F.text, States.all_collection_create)
-async def yes_handler(message: Message, state: FSMContext) -> None:
+async def create_collection_handler(message: Message, state: FSMContext) -> None:
     print(message.text)
     await message.reply("Секция 'Создания коллекции' пока в разработке.", reply_markup=keyboard.collection_menu)
     await state.clear()
 
-
 @dp.message(F.text == "Нет")
-async def no_handler(message: Message) -> None:
-    await message.reply("Секция 'Отправки зип архивом' пока в разработке.", reply_markup=keyboard.collection_menu)
-
+async def no_handler(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    photo_id = data.get('photo_id')
+    num_objects = data.get('num_objects')
+    zip_file_path = f'../Photo/ZIP/{photo_id}.zip'
+    converter = Converter()
+    converter.convert_to_zip(photo_id, num_objects, zip_file_path)
+    zip = FSInputFile(zip_file_path)
+    await message.reply("В таком случае держите архив с размеченными значками.", reply_markup=keyboard.main_menu)
+    await bot.send_document(chat_id=message.chat.id, document=zip)
+    os.remove(zip_file_path)
 
 # Обработчики команд с коллекциями
 @dp.message(F.text == "Коллекции")
@@ -132,7 +142,7 @@ async def favourites_handler(message: Message) -> None:
 
 
 @dp.message(F.text == "Весь список")
-async def collections_handler(message: Message, state: FSMContext) -> None:
+async def all_list_handler(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     await message.reply(
         "*Выберете номер коллекции для выгрузки в PDF*\n" + format_collection_list(get_list_collection(user_id)),
@@ -258,6 +268,16 @@ async def support_handler(message: Message) -> None:
     )
     await message.answer(answer, reply_markup=keyboard.main_menu),
 
+async def send_loading_message(chat_id):
+    message = await bot.send_message(chat_id, "Ожидайте, бот думает")
+    dots = ""
+    while True:
+        if dots == "...":
+            dots = ""
+        else:
+            dots += "."
+        await bot.edit_message_text(f"Ожидайте, бот думает{dots}", chat_id=chat_id, message_id=message.message_id)
+        await asyncio.sleep(0.5)
 
 async def main() -> None:
     # Начало опроса обновлений

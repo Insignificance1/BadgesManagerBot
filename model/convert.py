@@ -1,6 +1,8 @@
 from PIL import Image
 from fpdf import FPDF
 
+import aspose.zip as az
+import os
 
 class Converter:
     def __init__(self):
@@ -30,3 +32,12 @@ class Converter:
         self.pdf.output(output_path)
 
         return output_path
+
+    def convert_to_zip(self, photo_id, num_objects, zip_path):
+        with az.Archive() as archive:
+            for obj_num in range(num_objects):
+                file_name = f"{photo_id}_{obj_num}.png"
+                file_path = os.path.join(f"../Photo/noBg", file_name)
+                if os.path.isfile(file_path):
+                    archive.create_entry(file_name, file_path)
+            archive.save(zip_path)
