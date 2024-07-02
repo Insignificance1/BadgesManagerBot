@@ -137,12 +137,28 @@ async def collections_handler(message: Message) -> None:
 
 @dp.message(F.text == "Инструкция")
 async def instruction_handler(message: Message) -> None:
-    await message.reply("Здесь будет инструкция по использованию бота.", reply_markup=keyboard.instruction_menu)
+    instruction = (
+        "*Рекомендации по улучшению качества нарезки:*\n"
+        "1. Сделайте фотографию в высоком разрешении.\n"
+        "2. Обеспечьте хорошее освещение.\n"
+        "3. Используйте контрастный фон для фотографирования значков.\n\n"
+        "*Ограничения:*\n"
+        "1. Один пользователь может иметь не более 100 коллекций.\n"
+        "2. Одна коллекция может содержать не более 200 фотографий."
+    )
+    await message.answer(instruction, reply_markup=keyboard.instruction_menu, parse_mode='Markdown')
 
 
 @dp.message(F.text == "Обратиться к ТП")
 async def tp_handler(message: Message) -> None:
-    await message.reply("Связь с тп.", reply_markup=keyboard.main_menu)
+    answer = (
+        "Если у вас есть какие-то вопросы, вы можете обратиться к:\n\n"
+        "@insignificance123\n"
+        "@Mihter_2208\n"
+        "@KatyaPark11\n"
+        "@sech14"
+    )
+    await message.answer(answer, reply_markup=keyboard.main_menu),
 
 
 async def main() -> None:

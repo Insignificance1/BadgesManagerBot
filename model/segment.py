@@ -27,7 +27,7 @@ def segment_image(image_path, photo_id):
             grouped_objects[class_name] = []
         grouped_objects[class_name].append(box)
 
-    # Сохранение данных в текстовый файл РЕАЛИЗОВАТЬ СОХРАНЕНИЕ В БД
+    # Сохранение данных в текстовый файл
     text_file_path = f"../Photo/temp/{photo_id}.txt"
     with open(text_file_path, 'w') as f:
         for class_name, details in grouped_objects.items():
