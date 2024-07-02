@@ -13,7 +13,8 @@ from numpy.compat import long
 import config
 import keyboard
 from database.db import add_user, get_list_collection, get_all_images
-from model.segment import segment_image
+from model.segment import Segmenter
+from model.convert import Converter
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +23,7 @@ bot = Bot(token=config.TOKEN)
 # Инициализация диспетчера
 dp = Dispatcher()
 
+segmenter = Segmenter(model_path='../v3-965photo-100ep.pt')
 
 # Состояния FSM
 class States(StatesGroup):
@@ -75,7 +77,7 @@ async def count_handler(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     image_path = data.get('image_path')
     photo_id = data.get('photo_id')
-    text_file_path, num_objects = segment_image(image_path, photo_id)
+    text_file_path, num_objects = segmenter.segment_image(image_path, photo_id)
     # Возвращаемся ли мы в основное меню (СНЯТЬ СТАТУС) или оставляем пользователя в этом (Ничего не делать)
     await message.answer(f"Количество найденных объектов на фотографии: {num_objects}",
                          reply_markup=keyboard.function_menu)
@@ -87,7 +89,7 @@ async def cut_handler(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     image_path = data.get('image_path')
     photo_id = data.get('photo_id')
-    text_file_path, num_objects = segment_image(image_path, photo_id)
+    text_file_path, num_objects = segmenter.segment_image(image_path, photo_id)
     # Временная функция отправки нарезанных значков без фона
     for idx in range(num_objects):
         cropped_img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
@@ -122,20 +124,24 @@ async def collections_handler(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     await message.reply(
         "*Выберете номер коллекции для выгрузки в PDF*\n" + format_collection_list(get_list_collection(user_id)),
-        reply_markup=keyboard.collection_menu)
+        reply_markup=keyboard.collection_menu, parse_mode='Markdown')
     await state.set_state(States.state_list)
 
 
 @dp.message(F.text, States.state_list)
 async def num_collection_handler(message: Message, state: FSMContext) -> None:
-    #await message.reply("Я считал это " + message.text, reply_markup=keyboard.collection_menu)
     user_id = message.from_user.id
     bd_message = get_list_collection(user_id)
-    id, name= (bd_message[int(message.text) - 1])
-    print(id)
+    collection_id, name = (bd_message[int(message.text) - 1])
+    print(collection_id)
     print(name)
-    get_all_images(id)
+    images_list = get_all_images(collection_id)
+    print(images_list)
+    converter = Converter()
+    pdf_path = converter.convert_to_pdf(name, collection_id, images_list)
     await state.clear()
+    pdf = FSInputFile(pdf_path)
+    await bot.send_document(chat_id=message.chat.id, document=pdf)
 
 
 def format_collection_list(collections):
@@ -169,7 +175,8 @@ async def instruction_handler(message: Message) -> None:
         "*Рекомендации по улучшению качества нарезки:*\n"
         "1. Сделайте фотографию в высоком разрешении.\n"
         "2. Обеспечьте хорошее освещение.\n"
-        "3. Используйте контрастный фон для фотографирования значков.\n\n"
+        "3. Используйте контрастный фон для фотографирования значков.\n"
+        "4. Значки должны располагаться на достаточном расстоянии друг от друга"
         "*Ограничения:*\n"
         "1. Один пользователь может иметь не более 100 коллекций.\n"
         "2. Одна коллекция может содержать не более 200 фотографий."
