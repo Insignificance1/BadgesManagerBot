@@ -119,7 +119,13 @@ async def favourites_handler(message: Message) -> None:
 @dp.message(F.text == "Весь список")
 async def collections_handler(message: Message) -> None:
     user_id = message.from_user.id
-    await message.reply(format_collection_list(get_list_collection(user_id)), reply_markup=keyboard.collection_menu)
+    bd_message = get_list_collection(user_id)
+    await message.reply("*Выберете номер коллекции для выгрузки в PDF*\n" + format_collection_list(get_list_collection(user_id)), reply_markup=keyboard.collection_menu)
+    print(bd_message)
+    print(len(bd_message))
+    print(bd_message[int(message.text) - 1])#надо понять как лутать нормально цифру из бота
+    #print(bd_message[2 - 1])
+
 
 
 def format_collection_list(collections):
