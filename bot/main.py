@@ -11,6 +11,7 @@ from aiogram.types import FSInputFile
 
 import config
 import keyboard
+from database.db import add_user
 from model.segment import segment_image
 
 # Настройка логирования
@@ -33,6 +34,7 @@ async def command_start_handler(message: Message) -> None:
     # id и имя пользователя
     user_id = message.from_user.id
     user_full_name = message.from_user.full_name
+    add_user(user_id)
     # Логируем взаимодействие с пользователем
     logging.info(f'{user_id=} {user_full_name=}')
     await message.answer(f"Привет, {user_full_name}! Я бот, для работы с коллекционными значками.",
