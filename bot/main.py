@@ -12,7 +12,7 @@ from numpy.compat import long
 
 import config
 import keyboard
-from database.db import add_user, get_list_collection, get_all_images
+from database.db import Db
 from model.segment import Segmenter
 from model.convert import Converter
 
@@ -24,7 +24,7 @@ bot = Bot(token=config.TOKEN)
 dp = Dispatcher()
 
 segmenter = Segmenter(model_path='../v3-965photo-100ep.pt')
-
+db = Db()
 # Состояния FSM
 class States(StatesGroup):
     waiting_for_photo = State()  # Состояние ожидания фото
@@ -38,7 +38,7 @@ async def command_start_handler(message: Message) -> None:
     # id и имя пользователя
     user_id: long = message.from_user.id
     user_full_name = message.from_user.full_name
-    add_user(user_id)
+    db.add_user(user_id)
     # Логируем взаимодействие с пользователем
     logging.info(f'{user_id=} {user_full_name=}')
     await message.answer(f"Привет, {user_full_name}! Я бот, для работы с коллекционными значками.",
@@ -123,19 +123,20 @@ async def favourites_handler(message: Message) -> None:
 async def collections_handler(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     await message.reply(
-        "*Выберете номер коллекции для выгрузки в PDF*\n" + format_collection_list(get_list_collection(user_id)),
+        "*Выберете номер коллекции для выгрузки в PDF*\n" + format_collection_list(db.get_list_collection(user_id)),
         reply_markup=keyboard.collection_menu, parse_mode='Markdown')
     await state.set_state(States.state_list)
 
 
 @dp.message(F.text, States.state_list)
 async def num_collection_handler(message: Message, state: FSMContext) -> None:
+    #await message.reply("Я считал это " + message.text, reply_markup=keyboard.collection_menu)
     user_id = message.from_user.id
-    bd_message = get_list_collection(user_id)
+    bd_message = db.get_list_collection(user_id)
     collection_id, name = (bd_message[int(message.text) - 1])
     print(collection_id)
     print(name)
-    images_list = get_all_images(collection_id)
+    images_list = db.get_all_images(collection_id)
     print(images_list)
     converter = Converter()
     pdf_path = converter.convert_to_pdf(name, collection_id, images_list)
