@@ -72,7 +72,11 @@ def get_list_collection(id_user):
     else:
         return message
 
+def get_all_images(id_collection):
+    return exec_query_all(f"""select id, id_user, path, id_collection  from public.images where (id_collection={id_collection})""",
+                             "[INFO] Collection list were received")
 
+#(get_all_images(4))
 #def del_collection(id_user, id_collection):
 #    if (id_collection==get_list_collection(id_user)):
 
@@ -80,7 +84,7 @@ def get_list_collection(id_user):
 #print(get_list_collection(111111111))
 #add_user(111111111)
 
-#add_collection(5740628600,'name')
+#add_collection(759198603,'food')
 
 # Пример использования функции
 #insert_image(id_user=111111111, path='D:/dev/Python_dev/Practice/BadgesManagerBot/Photo/noBg/AgACAgIAAxkBAAIJZWaECXmBbCYu90OHLkhPreMGrV9yAAKY3zEbSnYgSIUISBd_YduAAQADAgADeQADNQQ_0.png', collection_id=4)

@@ -12,7 +12,7 @@ from numpy.compat import long
 
 import config
 import keyboard
-from database.db import add_user, get_list_collection
+from database.db import add_user, get_list_collection, get_all_images
 from model.segment import segment_image
 
 # Настройка логирования
@@ -120,7 +120,6 @@ async def favourites_handler(message: Message) -> None:
 @dp.message(F.text == "Весь список")
 async def collections_handler(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
-    bd_message = get_list_collection(user_id)
     await message.reply(
         "*Выберете номер коллекции для выгрузки в PDF*\n" + format_collection_list(get_list_collection(user_id)),
         reply_markup=keyboard.collection_menu)
@@ -129,7 +128,13 @@ async def collections_handler(message: Message, state: FSMContext) -> None:
 
 @dp.message(F.text, States.state_list)
 async def num_collection_handler(message: Message, state: FSMContext) -> None:
-    await message.reply("Я считал это " + message.text, reply_markup=keyboard.collection_menu)
+    #await message.reply("Я считал это " + message.text, reply_markup=keyboard.collection_menu)
+    user_id = message.from_user.id
+    bd_message = get_list_collection(user_id)
+    id, name= (bd_message[int(message.text) - 1])
+    print(id)
+    print(name)
+    get_all_images(id)
     await state.clear()
 
 
