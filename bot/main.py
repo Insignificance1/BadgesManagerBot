@@ -8,10 +8,11 @@ from aiogram import F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import FSInputFile
+from numpy.compat import long
 
 import config
 import keyboard
-from database.db import add_user
+from database.db import add_user, get_list_collection
 from model.segment import segment_image
 
 # Настройка логирования
@@ -32,7 +33,7 @@ class States(StatesGroup):
 @dp.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
     # id и имя пользователя
-    user_id = message.from_user.id
+    user_id: long = message.from_user.id
     user_full_name = message.from_user.full_name
     add_user(user_id)
     # Логируем взаимодействие с пользователем
@@ -107,7 +108,7 @@ async def no_handler(message: Message) -> None:
 # Обработчики команд с коллекциями
 @dp.message(F.text == "Коллекции")
 async def collections_handler(message: Message) -> None:
-    await message.reply("Секция 'Коллекции' пока в разработке.", reply_markup=keyboard.collection_menu)
+    await message.reply("Выберете в меню желаемое действие.", reply_markup=keyboard.collection_menu)
 
 
 @dp.message(F.text == "Избранное")
@@ -117,7 +118,19 @@ async def favourites_handler(message: Message) -> None:
 
 @dp.message(F.text == "Весь список")
 async def collections_handler(message: Message) -> None:
-    await message.reply("Секция 'Весь список' пока в разработке.", reply_markup=keyboard.collection_menu)
+    user_id = message.from_user.id
+    await message.reply(format_collection_list(get_list_collection(user_id)), reply_markup=keyboard.collection_menu)
+
+
+def format_collection_list(collections):
+    if(collections == 'Нет коллекций'):
+        return collections
+    else:
+        message = ""
+        for i, (collection_id, name) in enumerate(collections, start=1):
+            message += f"{i}. {name}\n"
+        return message
+
 
 
 @dp.message(F.text == "Добавить")

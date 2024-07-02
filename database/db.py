@@ -46,6 +46,13 @@ def add_user(id):
                "[INFO] User was added", True)
 
 
+def insert_image(id_user, path, collection_id):
+    # SQL-запрос для вставки данных
+    exec_query(f"""
+        INSERT INTO images (id_user, path, id_collection)
+        VALUES ('{id_user}','{path}', '{collection_id}')
+        ""","[INFO] Image was added", True)
+
 def add_collection(user_id, name_collection):
     if(len(name_collection)>100):
         return("[Ошибка] Количество символов больше 100")
@@ -56,15 +63,25 @@ def add_collection(user_id, name_collection):
         return("Коллекция успешно создана")
 
 
-def insert_image(id_user, path, collection_id):
-    # SQL-запрос для вставки данных
-    exec_query(f"""
-        INSERT INTO images (id_user, path, id_collection)
-        VALUES ('{id_user}','{path}', '{collection_id}')
-        ""","[INFO] Image was added", True)
+#вернёт id-коллекции и name-название
+def get_list_collection(id_user):
+    message = exec_query_all(f"""select id, name  from public.collections where (id_user={id_user})""",
+                             "[INFO] Collection list were received")
+    if len(message) ==0:
+        return("Нет коллекций")
+    else:
+        return message
+
+
+#def del_collection(id_user, id_collection):
+#    if (id_collection==get_list_collection(id_user)):
+
+
+#print(get_list_collection(111111111))
+#add_user(111111111)
+
+#add_collection(111111111,'name')
 
 # Пример использования функции
-insert_image(id_user=1, path='D:/dev/Python_dev/Practice/BadgesManagerBot/Photo/noBg/AgACAgIAAxkBAAIJZWaECXmBbCYu90OHLkhPreMGrV9yAAKY3zEbSnYgSIUISBd_YduAAQADAgADeQADNQQ_0.png', collection_id=1)
+#insert_image(id_user=111111111, path='D:/dev/Python_dev/Practice/BadgesManagerBot/Photo/noBg/AgACAgIAAxkBAAIJZWaECXmBbCYu90OHLkhPreMGrV9yAAKY3zEbSnYgSIUISBd_YduAAQADAgADeQADNQQ_0.png', collection_id=4)
 
-#add_user(1)
-#add_collection(759198603,'negr')
