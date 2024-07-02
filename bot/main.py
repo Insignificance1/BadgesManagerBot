@@ -28,8 +28,10 @@ segmenter = Segmenter(model_path='../v3-965photo-100ep.pt')
 
 # Состояния FSM
 class States(StatesGroup):
-    waiting_for_photo = State()  # Состояние ожидания фото
-    function_photo = State()  # Состояние ожидания функции
+    waiting_for_photo = State()  # Состояние ожидания фото для разметки
+    function_photo = State() # Состояние ожидания функции
+    change_collection_name = State() # Состояние ожидания ввода названия коллекции
+    add_badge = State() # Состояние ожидания фото значка в модуле редактирования
     state_list = State()  # Состояние считывания сообщения с номером коллекции
     all_collection_create = State()
 
@@ -61,7 +63,7 @@ async def send_photo_handler(message: Message, state: FSMContext) -> None:
 
 
 @dp.message(F.photo, States.waiting_for_photo)
-async def photo_handler(message: Message, state: FSMContext) -> None:
+async def get_photo_handler(message: Message, state: FSMContext) -> None:
     # Скачивание оригинала
     photo_id = message.photo[-1]
     file_info = await bot.get_file(photo_id.file_id)
@@ -160,20 +162,74 @@ def format_collection_list(collections):
             message += f"{i}. {name}\n"
         return message
 
-
+      
 @dp.message(F.text == "Добавить")
-async def collections_handler(message: Message) -> None:
+async def add_handler(message: Message) -> None:
     await message.reply("Секция 'Добавить' пока в разработке.", reply_markup=keyboard.collection_menu)
 
 
 @dp.message(F.text == "Удалить")
-async def collections_handler(message: Message) -> None:
+async def remove_handler(message: Message) -> None:
     await message.reply("Секция 'Удалить' пока в разработке.", reply_markup=keyboard.collection_menu)
 
 
 @dp.message(F.text == "Редактировать")
-async def collections_handler(message: Message) -> None:
-    await message.reply("Секция 'Весь список' пока в разработке.", reply_markup=keyboard.collection_menu)
+async def edit_handler(message: Message) -> None:
+    await message.reply("Представим, что вы уже выбрали коллекцию из перечисленных. Что вы хотите сделать с данной коллекцией?", reply_markup=keyboard.edit_menu)
+
+@dp.message(F.text == "Изменить название")
+async def send_name_handler(message: Message, state: FSMContext) -> None:
+    await message.reply("Просим вас ввести новое название для вашей коллекции.", reply_markup=keyboard.back_menu)
+    await state.set_state(States.change_collection_name)
+
+@dp.message(States.change_collection_name)
+async def change_name_handler(message: Message) -> None:
+    # if db.contains('collections_name', message):  # PS: Предполагаю такой метод в классе Database
+    #     await message.reply("Такое название коллекции уже существует. Повторите попытку.", reply_markup=keyboard.back_menu)
+    # else:
+    #     db.update('collections_name', message) # PS: Предполагаю такой метод в классе Database
+    #     await message.reply("Название коллекции успешно изменено.", reply_markup=keyboard.main_menu)
+    pass
+
+@dp.message(F.text == "Добавить значок")
+async def send_badge_handler(message: Message, state: FSMContext) -> None:
+    await message.reply("Пожалуйста, отправьте фото со значком, который вы хотите добавить в коллекцию.", reply_markup=keyboard.back_menu)
+    await state.set_state(States.add_badge)
+
+@dp.message(F.photo, States.add_badge)
+async def add_badge_handler(message: Message, state: FSMContext) -> None:
+    # # Получение файла фотографии
+    # photo = message.photo[-1]  # Берем последнюю (самую крупную) версию фотографии
+    # file_info = await bot.get_file(photo.file_id)
+    # file = await bot.download_file(file_info.file_path)
+    #
+    # # Преобразование файла в байтовый поток
+    # bytes_stream = BytesIO()
+    # bytes_stream.write(file.read())
+    # bytes_stream.seek(0)
+    #
+    # try:
+    #     conn = get_db_connection()
+    #     cursor = conn.cursor()
+    #
+    #     # Запись фотографии в базу данных
+    #     cursor.execute("INSERT INTO photos (user_id, photo) VALUES (%s, %s)",
+    #                    (message.from_user.id, psycopg2.Binary(bytes_stream.getvalue())))
+    #     conn.commit()
+    #
+    #     cursor.close()
+    #     conn.close()
+    #
+    #     await message.reply("Фотография успешно добавлена в базу данных!")
+    # except Exception as e:
+    #     logging.error(f"Ошибка при добавлении фотографии в базу данных: {e}")
+    #     await message.reply("Произошла ошибка при добавлении фотографии в базу данных.")
+    pass
+
+@dp.message(F.text == "Удалить значок")
+async def send_name_handler(message: Message, state: FSMContext) -> None:
+    await message.reply("Пожалуйста, отправьте фото со значком, который вы хотите добавить в коллекцию.", reply_markup=keyboard.back_menu)
+    await state.set_state(States.add_badge)
 
 
 @dp.message(F.text == "Инструкция")
@@ -192,7 +248,7 @@ async def instruction_handler(message: Message) -> None:
 
 
 @dp.message(F.text == "Обратиться к ТП")
-async def tp_handler(message: Message) -> None:
+async def support_handler(message: Message) -> None:
     answer = (
         "Если у вас есть какие-то вопросы, вы можете обратиться к:\n\n"
         "@insignificance123\n"
