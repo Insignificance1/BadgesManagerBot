@@ -25,11 +25,13 @@ dp = Dispatcher()
 
 segmenter = Segmenter(model_path='../v3-965photo-100ep.pt')
 
+
 # Состояния FSM
 class States(StatesGroup):
     waiting_for_photo = State()  # Состояние ожидания фото
     function_photo = State()  # Состояние ожидания функции
     state_list = State()  # Состояние считывания сообщения с номером коллекции
+    all_collection_create = State()
 
 
 # Основные команды
@@ -99,8 +101,16 @@ async def cut_handler(message: Message, state: FSMContext) -> None:
 
 
 @dp.message(F.text == "Да")
-async def yes_handler(message: Message) -> None:
+async def yes_handler(message: Message, state: FSMContext) -> None:
+    await state.set_state(States.all_collection_create)
+    await message.answer("Введите название коллекции.", reply_markup=keyboard.collection_menu)
+
+
+@dp.message(F.text, States.all_collection_create)
+async def yes_handler(message: Message, state: FSMContext) -> None:
+    print(message.text)
     await message.reply("Секция 'Создания коллекции' пока в разработке.", reply_markup=keyboard.collection_menu)
+    await state.clear()
 
 
 @dp.message(F.text == "Нет")
@@ -133,10 +143,7 @@ async def num_collection_handler(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     bd_message = get_list_collection(user_id)
     collection_id, name = (bd_message[int(message.text) - 1])
-    print(collection_id)
-    print(name)
     images_list = get_all_images(collection_id)
-    print(images_list)
     converter = Converter()
     pdf_path = converter.convert_to_pdf(name, collection_id, images_list)
     await state.clear()
