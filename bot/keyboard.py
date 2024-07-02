@@ -44,23 +44,31 @@ collection_menu = ReplyKeyboardMarkup(
             KeyboardButton(text="Избранное"),
             KeyboardButton(text="Добавить")
         ],
-        {
+        [
             KeyboardButton(text="Весь список"),
             KeyboardButton(text="Редактировать")
-        },
-        {
+        ],
+        [
             KeyboardButton(text="Назад"),
             KeyboardButton(text="Удалить")
-        }
+        ]
     ]
 )
 
-# Клавиатура редактирования
+# Клавиатура редактирования коллекции
 edit_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Изменить название")],
-        [KeyboardButton(text="Добавить")],
-        [KeyboardButton(text="Удалить")],
+        [KeyboardButton(text="Добавить значок")],
+        [KeyboardButton(text="Удалить значок")],
+        [KeyboardButton(text="Назад")]
+    ],
+    resize_keyboard=True
+)
+
+# Промежуточная клавиатура
+back_menu = ReplyKeyboardMarkup(
+    keyboard=[
         [KeyboardButton(text="Назад")]
     ],
     resize_keyboard=True
