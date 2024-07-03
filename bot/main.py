@@ -29,6 +29,7 @@ dp = Dispatcher()
 
 segmenter = Segmenter(model_path='../v3-965photo-100ep.pt')
 db = Db()
+
 # Состояния FSM
 class States(StatesGroup):
     waiting_for_photo = State()  # Состояние ожидания фото для разметки
@@ -61,7 +62,7 @@ async def back_handler(message: Message, state: FSMContext) -> None:
 # Обработчики команд с фото
 @dp.message(F.text == "Отправить фото")
 async def send_photo_handler(message: Message, state: FSMContext) -> None:
-    await message.answer("Пожалуйста, отправьте фото.", reply_markup=keyboard.function_menu)
+    await message.answer("Пожалуйста, отправьте фото.", reply_markup=keyboard.back_menu)
     await state.set_state(States.waiting_for_photo)
 
 
@@ -99,43 +100,59 @@ async def cut_handler(message: Message, state: FSMContext) -> None:
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(executor, segmenter.segment_image, image_path, photo_id)
     text_file_path, num_objects = result
-    loading_task.cancel()
     for idx in range(num_objects):
         cropped_img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
         photo_cropped = FSInputFile(cropped_img_path)
         await bot.send_photo(chat_id=message.chat.id, photo=photo_cropped)
     await state.update_data(num_objects=num_objects)
+    loading_task.cancel()
     await message.answer("Коллекция полная?", reply_markup=keyboard.yes_no_menu)
 
 @dp.message(F.text == "Да")
 async def yes_handler(message: Message, state: FSMContext) -> None:
     await state.set_state(States.all_collection_create)
-    await message.answer("Введите название коллекции.", reply_markup=keyboard.collection_menu)
+    await message.answer("Введите название коллекции.", reply_markup=keyboard.back_menu)
 
 @dp.message(F.text, States.all_collection_create)
 async def create_collection_handler(message: Message, state: FSMContext) -> None:
-    print(message.text)
-    await message.reply("Секция 'Создания коллекции' пока в разработке.", reply_markup=keyboard.collection_menu)
+    data = await state.get_data()
+    loop = asyncio.get_running_loop()
+    try:
+        loading_task = asyncio.create_task(send_loading_message(message.chat.id))
+        result = await loop.run_in_executor(executor, db.add_collection, message.from_user.id, message.text)
+        reply, id_collection = result
+        num_objects = data.get('num_objects')
+        photo_id = data.get('photo_id')
+        for idx in range(num_objects):
+            img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
+            await loop.run_in_executor(executor, db.insert_image, message.from_user.id, img_path, id_collection)
+        await message.reply(reply, reply_markup=keyboard.main_menu)
+        loading_task.cancel()
+    except Exception as e:
+        await message.reply(str(e), reply_markup=keyboard.main_menu)
+        await yes_handler(message, state)
     await state.clear()
 
 @dp.message(F.text == "Нет")
 async def no_handler(message: Message, state: FSMContext) -> None:
+    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
     data = await state.get_data()
     photo_id = data.get('photo_id')
     num_objects = data.get('num_objects')
     zip_file_path = f'../Photo/ZIP/{photo_id}.zip'
     converter = Converter()
-    converter.convert_to_zip(photo_id, num_objects, zip_file_path)
-    zip = FSInputFile(zip_file_path)
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(executor, converter.convert_to_zip, photo_id, num_objects, zip_file_path)
+    zip_file = FSInputFile(zip_file_path)
     await message.reply("В таком случае держите архив с размеченными значками.", reply_markup=keyboard.main_menu)
-    await bot.send_document(chat_id=message.chat.id, document=zip)
+    await bot.send_document(chat_id=message.chat.id, document=zip_file)
+    loading_task.cancel()
     os.remove(zip_file_path)
 
 # Обработчики команд с коллекциями
 @dp.message(F.text == "Коллекции")
 async def collections_handler(message: Message) -> None:
     await message.reply("Выберете в меню желаемое действие.", reply_markup=keyboard.collection_menu)
-
 
 @dp.message(F.text == "Избранное")
 async def favourites_handler(message: Message) -> None:
@@ -153,16 +170,24 @@ async def all_list_handler(message: Message, state: FSMContext) -> None:
 
 @dp.message(F.text, States.state_list)
 async def num_collection_handler(message: Message, state: FSMContext) -> None:
-    #await message.reply("Я считал это " + message.text, reply_markup=keyboard.collection_menu)
+    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
     user_id = message.from_user.id
-    bd_message = db.get_list_collection(user_id)
-    collection_id, name = (bd_message[int(message.text) - 1])
-    images_list = db.get_all_images(collection_id)
+    loop = asyncio.get_running_loop()
+    bd_message = await loop.run_in_executor(executor, db.get_list_collection, user_id)
+    try:
+        collection_id, name = bd_message[int(message.text) - 1]
+    except Exception:
+        await message.reply("Введите корректный номер коллекции в пределах списка.")
+        loading_task.cancel()
+        await all_list_handler(message, state)
+        return
+    images_list = await loop.run_in_executor(executor, db.get_all_images, collection_id)
     converter = Converter()
-    pdf_path = converter.convert_to_pdf(name, collection_id, images_list)
+    pdf_path = await loop.run_in_executor(executor, converter.convert_to_pdf, name, collection_id, images_list)
     await state.clear()
     pdf = FSInputFile(pdf_path)
     await bot.send_document(chat_id=message.chat.id, document=pdf)
+    loading_task.cancel()
 
 
 def format_collection_list(collections):
@@ -251,10 +276,11 @@ async def instruction_handler(message: Message) -> None:
         "1. Сделайте фотографию в высоком разрешении.\n"
         "2. Обеспечьте хорошее освещение.\n"
         "3. Используйте контрастный фон для фотографирования значков.\n"
-        "4. Значки должны располагаться на достаточном расстоянии друг от друга"
+        "4. Значки должны располагаться на достаточном расстоянии друг от друга.\n"
         "*Ограничения:*\n"
         "1. Один пользователь может иметь не более 100 коллекций.\n"
-        "2. Одна коллекция может содержать не более 200 фотографий."
+        "2. Одна коллекция может содержать не более 200 фотографий.\n"
+        "3. Название коллекции должно содержать от 3 до 100 символов."
     )
     await message.answer(instruction, reply_markup=keyboard.instruction_menu, parse_mode='Markdown')
 

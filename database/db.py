@@ -16,8 +16,9 @@ class Db:
                 database=db_name
             )
             self.connection.autocommit = True
-        except Exception as ex:
-            print(f"[INFO] Error while connecting to PostgreSQL: {ex}")
+        except Exception as e:
+            print(f"[INFO] Error while connecting to PostgreSQL: {e}")
+
     def exec_query(self, update, info_message, query_type: bool):
         try:
             connection = ps.connect(
@@ -60,22 +61,27 @@ class Db:
                    "[INFO] User was added", True)
 
 
-    def insert_image(self, id_user, path, collection_id):
+    def insert_image(self, id_user, path, id_collection):
         # SQL-запрос для вставки данных
         self.exec_query(f"""
             INSERT INTO images (id_user, path, id_collection)
-            VALUES ('{id_user}','{path}', '{collection_id}')
+            VALUES ('{id_user}','{path}', '{id_collection}')
             ""","[INFO] Image was added", True)
 
-    def add_collection(self, user_id, name_collection):
-        if(len(name_collection)>100):
-            return("[Ошибка] Количество символов больше 100")
+    def add_collection(self, id_user, name_collection):
+        if 3 <= len(name_collection) <= 100 and not self.contains_collection_name(id_user, name_collection):
+            query = f"""insert into {schema_name}.collections (id_user, name)
+                        values ('{id_user}', '{name_collection}')
+                        returning id"""
+            try:
+                result = self.exec_query(query, "[INFO] Collection was added", True)
+                # Получаем id новой коллекции из результата запроса.
+                new_collection_id = result[0][0]
+                return "Коллекция успешно создана", new_collection_id
+            except Exception as e:
+                raise Exception("[Ошибка] Произошла ошибка при попытке изменения базы данных. Попробуйте ещё раз.") from e
         else:
-            self.exec_query(f"""insert into {schema_name}.collections (id_user, name)
-                                                      values ('{user_id}', '{name_collection}')""",
-                       "[INFO] Collection was added", True)
-            return("Коллекция успешно создана")
-
+            raise Exception("[Ошибка] Неверное название коллекции или коллекция с таким именем уже существует.")
 
     #вернёт id-коллекции и name-название
     def get_list_collection(self, id_user):
@@ -86,10 +92,10 @@ class Db:
         else:
             return message
 
-
     def get_all_images(self, id_collection):
         return self.exec_query_all(f"""select path from public.images where (id_collection={id_collection})""",
                                  "[INFO] Collection list were received")
+
     def add_favorities(self, id_collection):
         return self.exec_query(
             f"""insert into favorities from public.collections where (id_collection={id_collection})""",
@@ -98,6 +104,17 @@ class Db:
     def get_all_images(self, id_collection):
         return self.exec_query_all(f"""select path from public.images where (id_collection={id_collection})""",
                                  "[INFO] Collection list were received")
+
+    def contains_collection_name(self, id_user, name):
+        result = self.exec_query_all(f"select name from public.collections where id_user={id_user} AND name='{name}'",
+                                     "[INFO] Checking for existence of collection name")
+        return len(result) > 0
+
+    def count_user_collections(self, id_user):
+        result = self.exec_query_all(f"select count(*) from public.collections where id_user={id_user}",
+                                     "[INFO] Counting collections for user")
+        return len(result)
+
     #(get_all_images(4))
     #def del_collection(id_user, id_collection):
     #    if (id_collection==get_list_collection(id_user)):
@@ -106,10 +123,10 @@ class Db:
     #print(get_list_collection(111111111))
     #add_user(111111111)
 
-    #add_collection(759198603,'food')
+    # add_collection(1216034152, 'abeb')
 
     # Пример использования функции
-    # n = 44
+    n = 44
     # for i in range(0, n, +1):
-    #     insert_image(id_user=759198603, path=f'../Photo/noBg/AgACAgIAAxkBAAIL_WaEVVgochVy2L0z1LLPzjAtAprtAAKe3zEbU5EgSPIO6FYarG0EAQADAgADeQADNQQ_{i}.png', collection_id=7)
+        # insert_image(id_user=1216034152, path=f'../Photo/noBg/AgACAgIAAxkBAAIL_WaEVVgochVy2L0z1LLPzjAtAprtAAKe3zEbU5EgSPIO6FYarG0EAQADAgADeQADNQQ_{i}.png', collection_id=8)
 
