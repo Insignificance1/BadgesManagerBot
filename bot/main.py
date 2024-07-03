@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
@@ -16,6 +17,8 @@ import keyboard
 from database.db import add_user, get_list_collection, get_all_images
 from model.segment import Segmenter
 from model.convert import Converter
+
+executor = ThreadPoolExecutor()
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -90,21 +93,20 @@ async def count_handler(message: Message, state: FSMContext) -> None:
 
 @dp.message(F.text == "Нарезать на отдельные значки", States.function_photo)
 async def cut_handler(message: Message, state: FSMContext) -> None:
-    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
-    # Отправка нарезанных изображений
     data = await state.get_data()
     image_path = data.get('image_path')
     photo_id = data.get('photo_id')
-    text_file_path, num_objects = segmenter.segment_image(image_path, photo_id)
-    await state.update_data(num_objects=num_objects)
-    # Временная функция отправки нарезанных значков без фона
+    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(executor, segmenter.segment_image, image_path, photo_id)
+    text_file_path, num_objects = result
+    loading_task.cancel()
     for idx in range(num_objects):
         cropped_img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
         photo_cropped = FSInputFile(cropped_img_path)
         await bot.send_photo(chat_id=message.chat.id, photo=photo_cropped)
-    loading_task.cancel()
+    await state.update_data(num_objects=num_objects)
     await message.answer("Коллекция полная?", reply_markup=keyboard.yes_no_menu)
-
 
 @dp.message(F.text == "Да")
 async def yes_handler(message: Message, state: FSMContext) -> None:
@@ -271,13 +273,16 @@ async def support_handler(message: Message) -> None:
 async def send_loading_message(chat_id):
     message = await bot.send_message(chat_id, "Ожидайте, бот думает")
     dots = ""
-    while True:
-        if dots == "...":
-            dots = ""
-        else:
-            dots += "."
-        await bot.edit_message_text(f"Ожидайте, бот думает{dots}", chat_id=chat_id, message_id=message.message_id)
-        await asyncio.sleep(0.5)
+    try:
+        while True:
+            if dots == "...":
+                dots = ""
+            else:
+                dots += "."
+            await bot.edit_message_text(f"Ожидайте, бот думает{dots}", chat_id=chat_id, message_id=message.message_id)
+            await asyncio.sleep(0.5)
+    except asyncio.CancelledError:
+        await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
 
 async def main() -> None:
     # Начало опроса обновлений
