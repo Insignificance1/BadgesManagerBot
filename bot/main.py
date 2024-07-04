@@ -3,9 +3,9 @@ import asyncio
 import os
 from concurrent.futures import ThreadPoolExecutor
 
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 from aiogram import F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -17,6 +17,8 @@ import keyboard
 from database.db import Db
 from model.segment import Segmenter
 from model.convert import Converter
+from model.segment import rotate_image
+from keyboard import create_edit_keyboard
 
 executor = ThreadPoolExecutor()
 
@@ -44,6 +46,7 @@ class States(StatesGroup):
     change_favorite_collection_name = State()  # Состояние ожидания ввода названия избранной коллекции
     waiting_for_new_name = State()  # Ожидает задания имени
     all_collection_create = State()
+    align_state = State()
 
 
 # Основные команды
@@ -110,10 +113,90 @@ async def cut_handler(message: Message, state: FSMContext) -> None:
     for idx in range(num_objects):
         cropped_img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
         photo_cropped = FSInputFile(cropped_img_path)
-        await bot.send_photo(chat_id=message.chat.id, photo=photo_cropped)
+        await bot.send_photo(chat_id=message.chat.id, photo=photo_cropped, reply_markup=keyboard.function2_menu)
     await state.update_data(num_objects=num_objects)
     loading_task.cancel()
-    await message.answer("Коллекция полная?", reply_markup=keyboard.yes_no_menu)
+
+
+@dp.message(F.text == "Выровнять", States.function_photo)
+async def edit_handler(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    photo_id = data.get('photo_id')
+    num_objects = data.get('num_objects')
+    idx = 0
+    aligned_img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
+    edit_keyboard = create_edit_keyboard(idx, num_objects)
+    photo_aligned = FSInputFile(aligned_img_path)
+
+    # Костыль, чтобы удалять клавиатуру
+    await message.answer("ㅤ", reply_markup=ReplyKeyboardRemove())
+    await bot.delete_message(message.chat.id, message.message_id + 1)
+
+    await bot.send_photo(chat_id=message.chat.id, photo=photo_aligned, reply_markup=edit_keyboard)
+    await state.update_data(edit_idx=idx)
+
+
+@dp.callback_query(lambda c: c.data.startswith('edit_'))
+async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    photo_id = data.get('photo_id')
+    edit_idx = data.get('edit_idx')
+    num_objects = data.get('num_objects')
+    action = callback_query.data.split('_')[-1]
+    print(action)
+    angle = 0
+
+    if action == 'left':
+        edit_idx = max(edit_idx - 1, 0)
+    elif action == 'right':
+        edit_idx += 1  # увеличиваем idx для перехода к следующему изображению
+    elif action == '-1':
+        angle = -1
+    elif action == '+1':
+        angle = 1
+    elif action == '-10':
+        angle = -10
+    elif action == '+10':
+        angle = 10
+    elif action == '-45':
+        angle = -45
+    elif action == '+45':
+        angle = 45
+    elif action == '-90':
+        angle = -90
+    elif action == '+90':
+        angle = 90
+    elif action == 'continue':
+        await bot.send_message(chat_id=callback_query.message.chat.id, text="Коллекция полная?",
+                               reply_markup=keyboard.yes_no_menu)
+        await callback_query.answer()
+        return
+    elif action == 'exit':
+        await bot.send_message(chat_id=callback_query.message.chat.id, text="Вы возвращены в главное меню.",
+                               reply_markup=keyboard.main_menu)
+        await callback_query.answer()
+        return
+
+    image_path = f"../Photo/noBg/{photo_id}_{edit_idx}.png"
+    if angle != 0:
+        rotate_image(image_path, angle)
+
+    edit_keyboard = create_edit_keyboard(edit_idx, num_objects)
+    photo_aligned = FSInputFile(image_path)
+    await bot.edit_message_media(
+        chat_id=callback_query.message.chat.id,
+        message_id=callback_query.message.message_id,
+        media=types.InputMediaPhoto(media=photo_aligned),
+        reply_markup=edit_keyboard
+    )
+
+    await state.update_data(edit_idx=edit_idx)
+    await callback_query.answer()
+
+
+@dp.message(F.text == "Продолжить", States.function_photo)
+async def contin_handler(message: Message) -> None:
+    await message.answer("Коллекция полная:?", reply_markup=keyboard.yes_no_menu)
 
 
 @dp.message(F.text == "Да")
