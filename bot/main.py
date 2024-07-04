@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import os
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 
 from aiogram import Bot, Dispatcher
@@ -33,9 +34,11 @@ db = Db()
 
 # Состояния FSM
 class States(StatesGroup):
+    waiting_for_zip = State()  # Состояние ожидания ZIP-файла
     waiting_for_photo = State()                 # Ожидание фото для разметки
     choose_function_photo = State()             # Ожидание выбора функции обработки фото
     change_collection_name = State()            # Ожидание ввода названия коллекции
+    add_new_collection_zip_name = State()       # Ожидание создание новой колекции из ZIP файла с именем
     add_badge = State()                         # Ожидание фото значка в модуле редактирования
     collections = State()
     favorites = State()
@@ -45,6 +48,7 @@ class States(StatesGroup):
     state_del_favorite_list = State()           # Состояние считывания сообщения с номером коллекции для удаления из избранного
     change_favorite_collection_name = State()   # Состояние ожидания ввода названия избранной коллекции
     waiting_for_new_name = State()              # Ожидает задания имени
+    state_back = State()                        # Ждёт кнопки назад
     all_collection_create = State()
 
 
@@ -307,6 +311,7 @@ async def edit_favorite_handler(message: Message, state: FSMContext) -> None:
                          reply_markup=keyboard.favorite_collections_menu, parse_mode='Markdown')
     loading_task.cancel()
 
+
 # Форматирование списка коллекций
 def format_collection_list(collections, prefix):
     new_keyboard = []
@@ -318,14 +323,73 @@ def format_collection_list(collections, prefix):
     new_keyboard.append([InlineKeyboardButton(text="Назад", callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=new_keyboard)
 
-@dp.message(F.text == "Добавить")
-async def add_handler(message: Message) -> None:
-    await message.reply("Секция 'Добавить' пока в разработке.", reply_markup=keyboard.collections_menu)
+@dp.message(F.text == "Добавить коллекцию")
+async def add_handler(message: Message, state: FSMContext) -> None:
+    await message.reply("Отправьте ZIP-файл с изображениями.", reply_markup=keyboard.back_menu)
+    await state.set_state(States.waiting_for_zip)
 
 
-@dp.message(F.text == "Удалить")
+@dp.message(F.document, States.waiting_for_zip)
+async def get_zip_handler(message: Message, state: FSMContext) -> None:
+    await state.update_data(zip_file_id=message.document.file_id)
+    await message.reply("Файл получен. Введите название новой коллекции.", reply_markup=keyboard.back_menu)
+    await state.set_state(States.add_new_collection_zip_name)
+
+
+@dp.message(F.text, States.add_new_collection_zip_name)
+async def create_collection_handler(message: Message, state: FSMContext) -> None:
+    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
+    loop = asyncio.get_running_loop()
+    data = await state.get_data()
+    zip_file_id = data.get('zip_file_id')
+    collection_name = message.text
+    collection_id = 0
+
+    while True:
+        collection_name = message.text
+        try:
+            collection_id = db.add_collection(message.from_user.id, collection_name)
+            break
+        except Exception as e:
+            await message.reply("Коллекция с таким именем уже существует. Введите новое имя:", reply_markup=keyboard.back_menu)
+            loading_task.cancel()
+            collection_name = await dp.throttle("collection_name", rate=1)(dp.message(F.text, States.add_new_collection_zip_name))
+            continue
+
+    try:
+        zip_file = await bot.get_file(zip_file_id)
+        zip_path = f'../Photo/ZIP/{zip_file.file_path}'
+        await bot.download_file(zip_file.file_path, zip_path)
+
+        zip_ref = zipfile.ZipFile(zip_path, 'r')
+        images = []
+        for idx, file in enumerate(zip_ref.namelist()):
+            filename, file_extension = os.path.splitext(file)
+            if file_extension == '.png':
+                new_filename = f"{zip_file_id}_{idx}.png"
+                zip_ref.extract(file, '../Photo/noBg/')
+                os.rename(f"../Photo/noBg/{file}", f"../Photo/noBg/{new_filename}")
+                images.append(new_filename)
+
+        zip_ref.close()
+        os.remove(zip_path)
+
+        for img_name in images:
+            img_path = f"../Photo/noBg/{img_name}"
+            await loop.run_in_executor(executor, db.insert_image, message.from_user.id, img_path, collection_id[1])
+
+        await message.reply(f"Коллекция '{collection_name}' успешно создана.", reply_markup=keyboard.main_menu)
+        loading_task.cancel()
+    except Exception as e:
+        await message.reply(f"Ошибка при создании коллекции: {e}", reply_markup=keyboard.main_menu)
+        loading_task.cancel()
+
+    await state.clear()
+
+
+@dp.message(F.text == "Удалить коллекцию")
 async def remove_handler(message: Message) -> None:
-    await message.reply("Секция 'Удалить' пока в разработке.", reply_markup=keyboard.collections_menu)
+    await message.reply("Секция 'Удалить' пока в разработке.", reply_markup=keyboard.collection_menu)
 
 
 @dp.message(F.text == "Редактировать")
@@ -403,7 +467,7 @@ async def instruction_handler(message: Message) -> None:
         "1. Один пользователь может иметь не более 100 коллекций.\n"
         "2. Одна коллекция может содержать не более 200 фотографий.\n"
         "3. Название коллекции должно содержать от 3 до 100 символов.\n"
-        "4. Название значка должно содержать от 3 до 60 символов."
+        "4. Название значка должно содержать от 3 до 70 символов."
     )
     await message.answer(instruction, reply_markup=keyboard.instruction_menu, parse_mode='Markdown')
 

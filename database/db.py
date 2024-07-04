@@ -71,6 +71,14 @@ class Db:
             values ('{id_user}','{path}', '{id_collection}')
             ""","[INFO] Image was added", True)
 
+#    def add_unique_collection(self, id_user, name):
+#        if 3 <= len(name) <= 100 and not self.contains_collection_name(id_user, name):
+#            query = f"""insert into {schema_name}.collections (id_user, name) values (%s, %s) returning id"""
+#            result = self.exec_query(query, f"[INFO] Collection '{name}' was added", True)
+#            return result[0][0]
+#        else:
+#            raise Exception("[Ошибка] Коллекция с таким именем уже существует.")
+
 
     def add_collection(self, id_user, name_collection):
         if 3 <= len(name_collection) <= 100 and not self.contains_collection_name(id_user, name_collection):
