@@ -14,8 +14,9 @@ from aiogram.exceptions import TelegramBadRequest
 from numpy.compat import long
 
 import config
-import keyboard
+from bot import keyboard
 from database.db import Db
+
 from model.segment import Segmenter
 from model.convert import Converter
 
@@ -49,6 +50,7 @@ class States(StatesGroup):
     change_favorite_collection_name = State()   # Состояние ожидания ввода названия избранной коллекции
     waiting_for_new_name = State()              # Ожидает задания имени
     state_back = State()                        # Ждёт кнопки назад
+    state_del_collection = State()              # Состояние ожидания удаления коллекции
     all_collection_create = State()
 
 
@@ -388,8 +390,40 @@ async def create_collection_handler(message: Message, state: FSMContext) -> None
 
 
 @dp.message(F.text == "Удалить коллекцию")
-async def remove_handler(message: Message) -> None:
-    await message.reply("Секция 'Удалить' пока в разработке.", reply_markup=keyboard.collection_menu)
+async def delete_collection_handler(message: Message, state: FSMContext) -> None:
+    loop = asyncio.get_running_loop()
+    user_id = message.from_user.id
+    collections = await loop.run_in_executor(executor, db.get_list_collection, user_id)
+    if len(collections) == 0:
+        await message.reply("У вас нет коллекций.", reply_markup=keyboard.collections_menu)
+    else:
+        collection_list = "Выберите коллекцию для удаления:\n"
+        for i, collection in enumerate(collections, start=1):
+            collection_list += f"{i}. {collection[1]}\n"
+        await message.reply(collection_list, reply_markup=keyboard.back_menu)
+        await state.set_state(States.state_del_collection)
+
+
+@dp.message(F.text, States.state_del_collection)
+async def delete_collection_number_handler(message: Message, state: FSMContext) -> None:
+    loop = asyncio.get_running_loop()
+    data = await state.get_data()
+    user_id = message.from_user.id
+    try:
+        collection_number = int(message.text)
+    except ValueError:
+        await message.reply("Неверный формат номера коллекции. Попробуйте ещё раз.", reply_markup=keyboard.back_menu)
+        return
+
+    collections = await loop.run_in_executor(executor, db.get_list_collection, user_id)
+    if 0 < collection_number <= len(collections):
+        collection_id = collections[collection_number - 1][0]
+        await loop.run_in_executor(executor, db.delete_collection,user_id, collection_id)
+        await message.reply("Коллекция успешно удалена.", reply_markup=keyboard.collections_menu)
+    else:
+        await message.reply("Неверный номер коллекции. Попробуйте ещё раз.", reply_markup=keyboard.back_menu)
+
+    await state.clear()
 
 
 @dp.message(F.text == "Редактировать")

@@ -1,5 +1,8 @@
+import os
+
 import psycopg2 as ps
 import datetime
+
 from database.config import host, user, password, db_name, schema_name
 
 # метод запроса в целом. его можно юзать, когда надо сделть insert, update, delete
@@ -125,6 +128,36 @@ class Db:
             return ("Нет избранных коллекций")
         else:
             return message
+
+    def delete_file_by_path(self, path:str):
+        if os.path.exists(path):
+            os.remove(path)
+
+
+    def delete_collection(self, id_user, collection_id):
+        # Проверка существования коллекции
+        if self.contains_collection(id_user, collection_id):
+            # Получение списка изображений, связанных с коллекцией
+            images = self.exec_query(f"""select path from {schema_name}.images where id_collection = {collection_id}""",
+                                     "[INFO] Images were retrieved", True)
+            # Удаление файлов изображений
+            for image in images:
+                path = image[0]
+                self.delete_file_by_path(str(path))
+            # Удаление изображений из таблицы images
+            self.exec_query(f"""delete from {schema_name}.images where id_collection = {collection_id}""",
+                            "[INFO] Images were deleted", True)
+            # Удаление коллекции из таблицы collections
+            self.exec_query(f"""delete from {schema_name}.collections where id = {collection_id}""",
+                            "[INFO] Collection was deleted", True)
+
+            return "Коллекция успешно удалена"
+        else:
+            raise Exception("[Ошибка] Коллекция не существует")
+
+
+    def contains_collection(self, id_user, collection_id):
+        return len(self.exec_query_first(f"""select id from {schema_name}.collections where id={collection_id} and id_user={id_user} """, "[INFO]Return collection"))
 
 
     #по id коллекции заменяет название
