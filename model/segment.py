@@ -8,12 +8,12 @@ from PIL import Image
 class Segmenter:
     def __init__(self, model_path):
         self.model = YOLO(model_path)
+        self.model = YOLO('../v3-965photo-100ep.pt')
 
     def segment_image(self, image_path, photo_id):
         # Загрузка изображения
-        model = YOLO('../v3-965photo-100ep.pt')
         image = cv2.imread(image_path)
-        results = model(image)[0]
+        results = self.model(image)[0]
 
         # Получение оригинального изображения и результатов
         image = results.orig_img
@@ -52,4 +52,15 @@ class Segmenter:
             output_image_path = f"../Photo/noBg/{photo_id}_{idx}.png"
             output_image.save(output_image_path)
 
-        return text_file_path, len(details)
+        return text_file_path
+
+    def get_count(self, image_path):
+        # Загрузка изображения
+        image = cv2.imread(image_path)
+        results = self.model(image)[0]
+
+        # Получение результатов
+        boxes = results.boxes.xyxy.cpu().numpy().astype(np.int32)
+
+        # Возвращение количества боксов
+        return len(boxes)

@@ -30,18 +30,19 @@ dp = Dispatcher()
 segmenter = Segmenter(model_path='../v3-965photo-100ep.pt')
 db = Db()
 
+
 # Состояния FSM
 class States(StatesGroup):
     waiting_for_photo = State()  # Состояние ожидания фото для разметки
-    function_photo = State() # Состояние ожидания функции
-    change_collection_name = State() # Состояние ожидания ввода названия коллекции
-    add_badge = State() # Состояние ожидания фото значка в модуле редактирования
+    function_photo = State()  # Состояние ожидания функции
+    change_collection_name = State()  # Состояние ожидания ввода названия коллекции
+    add_badge = State()  # Состояние ожидания фото значка в модуле редактирования
     state_list = State()  # Состояние считывания сообщения с номером коллекции
-    state_favorite_list = State() # Состояние считывания сообщения с номером избранной коллекции
-    state_add_favorite_list = State() # Состояние считывания сообщения с номером коллекции для добавления в избранное
-    state_del_favorite_list = State() # Состояние считывания сообщения с номером коллекции для удаления из избранного
-    change_favorite_collection_name = State() # Состояние ожидания ввода названия избранной коллекции
-    waiting_for_new_name = State() # Ожидает задания имени
+    state_favorite_list = State()  # Состояние считывания сообщения с номером избранной коллекции
+    state_add_favorite_list = State()  # Состояние считывания сообщения с номером коллекции для добавления в избранное
+    state_del_favorite_list = State()  # Состояние считывания сообщения с номером коллекции для удаления из избранного
+    change_favorite_collection_name = State()  # Состояние ожидания ввода названия избранной коллекции
+    waiting_for_new_name = State()  # Ожидает задания имени
     all_collection_create = State()
 
 
@@ -89,9 +90,10 @@ async def get_photo_handler(message: Message, state: FSMContext) -> None:
 async def count_handler(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     image_path = data.get('image_path')
-    photo_id = data.get('photo_id')
-    text_file_path, num_objects = segmenter.segment_image(image_path, photo_id)
-    # Возвращаемся ли мы в основное меню (СНЯТЬ СТАТУС) или оставляем пользователя в этом (Ничего не делать)
+    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
+    loop = asyncio.get_running_loop()
+    num_objects = await loop.run_in_executor(executor, segmenter.get_count, image_path)
+    loading_task.cancel()
     await message.answer(f"Количество найденных объектов на фотографии: {num_objects}",
                          reply_markup=keyboard.function_menu)
 
@@ -113,10 +115,12 @@ async def cut_handler(message: Message, state: FSMContext) -> None:
     loading_task.cancel()
     await message.answer("Коллекция полная?", reply_markup=keyboard.yes_no_menu)
 
+
 @dp.message(F.text == "Да")
 async def yes_handler(message: Message, state: FSMContext) -> None:
     await state.set_state(States.all_collection_create)
     await message.answer("Введите название коллекции.", reply_markup=keyboard.back_menu)
+
 
 @dp.message(F.text, States.all_collection_create)
 async def create_collection_handler(message: Message, state: FSMContext) -> None:
@@ -138,6 +142,7 @@ async def create_collection_handler(message: Message, state: FSMContext) -> None
         await yes_handler(message, state)
     await state.clear()
 
+
 @dp.message(F.text == "Нет")
 async def no_handler(message: Message, state: FSMContext) -> None:
     loading_task = asyncio.create_task(send_loading_message(message.chat.id))
@@ -154,16 +159,19 @@ async def no_handler(message: Message, state: FSMContext) -> None:
     loading_task.cancel()
     os.remove(zip_file_path)
 
+
 # Обработчики команд с коллекциями
 @dp.message(F.text == "Коллекции")
 async def collections_handler(message: Message) -> None:
     await message.reply("Выберете в меню желаемое действие.", reply_markup=keyboard.collection_menu)
 
+
 @dp.message(F.text == "Избранное")
 async def favourites_list_handler(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     await message.reply(
-        "*Ваш список избранного\nВыберете номер коллекции для выгрузки в PDF*\n" + format_collection_list(db.get_list_favorites(user_id)),
+        "*Ваш список избранного\nВыберете номер коллекции для выгрузки в PDF*\n" + format_collection_list(
+            db.get_list_favorites(user_id)),
         reply_markup=keyboard.favorite_collection_menu, parse_mode='Markdown')
     await state.set_state(States.state_favorite_list)
 
@@ -176,7 +184,7 @@ async def send_name_handler(message: Message, state: FSMContext) -> None:
     await state.set_state(States.change_favorite_collection_name)
 
 
-#Принимает id коллекции которую надо сменить и направляет на смену имени
+# Принимает id коллекции которую надо сменить и направляет на смену имени
 @dp.message(F.text, States.change_favorite_collection_name)
 @dp.message(F.text, States.change_collection_name)
 async def change_name_handler(message: Message, state: FSMContext) -> None:
@@ -196,13 +204,13 @@ async def change_name_handler(message: Message, state: FSMContext) -> None:
         loading_task.cancel()
         await reply_handler(message, state)
         return
-    await message.reply("Просим вас ввести новое название для коллекции",reply_markup=keyboard.back_menu)
+    await message.reply("Просим вас ввести новое название для коллекции", reply_markup=keyboard.back_menu)
 
     await state.update_data(collection_id=collection_id)
     await state.set_state(States.waiting_for_new_name)
 
 
-#Ожидание пока пользователь впишет новое имя коллекции
+# Ожидание пока пользователь впишет новое имя коллекции
 @dp.message(F.text, States.waiting_for_new_name)
 async def new_name_handler(message: Message, state: FSMContext) -> None:
     loading_task = asyncio.create_task(send_loading_message(message.chat.id))
@@ -212,18 +220,16 @@ async def new_name_handler(message: Message, state: FSMContext) -> None:
     collection_id = data['collection_id']
     user_id = message.from_user.id
     result = await loop.run_in_executor(executor, db.contains_collection_name, user_id, new_name)
-    if  result > 0:
+    if result > 0:
         await message.reply("Такое название коллекции уже существует. Повторите попытку.",
                             reply_markup=keyboard.back_menu)
     else:
-        await loop.run_in_executor(executor, db.update_name_collection,new_name, collection_id)
+        await loop.run_in_executor(executor, db.update_name_collection, new_name, collection_id)
         await message.reply("Название коллекции успешно изменено.", reply_markup=keyboard.main_menu)
         await state.clear()
         await message.answer(f"*Действия для {new_name} выполнены*\n",
                              reply_markup=keyboard.collection_menu, parse_mode='Markdown')
         loading_task.cancel()
-
-
 
 
 #    new_name = message.text
@@ -242,7 +248,8 @@ async def new_name_handler(message: Message, state: FSMContext) -> None:
 async def add_favourites_list_handler(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     await message.reply(
-        "*Все ваши коллекции\nВведите номер коллекции которую желаете добавить в избранное*\n" + format_collection_list(db.get_list_collection(user_id)),
+        "*Все ваши коллекции\nВведите номер коллекции которую желаете добавить в избранное*\n" + format_collection_list(
+            db.get_list_collection(user_id)),
         reply_markup=keyboard.favorite_collection_menu, parse_mode='Markdown')
     await state.set_state(States.state_add_favorite_list)
 
@@ -251,7 +258,8 @@ async def add_favourites_list_handler(message: Message, state: FSMContext) -> No
 async def del_favourites_list_handler(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     await message.reply(
-        "*Ваш список избранного\nВведите номер коллекции которую желаете удалить из избранного*\n" + format_collection_list(db.get_list_favorites(user_id)),
+        "*Ваш список избранного\nВведите номер коллекции которую желаете удалить из избранного*\n" + format_collection_list(
+            db.get_list_favorites(user_id)),
         reply_markup=keyboard.favorite_collection_menu, parse_mode='Markdown')
     await state.set_state(States.state_del_favorite_list)
 
@@ -321,7 +329,7 @@ async def num_collection_handler(message: Message, state: FSMContext) -> None:
 
 
 def format_collection_list(collections):
-    if (collections == 'Нет коллекций' or collections == 'Нет избранных коллекций'):
+    if collections == 'Нет коллекций' or collections == 'Нет избранных коллекций':
         return collections
     else:
         message = ""
@@ -342,12 +350,15 @@ async def remove_handler(message: Message) -> None:
 
 @dp.message(F.text == "Редактировать")
 async def edit_handler(message: Message) -> None:
-    await message.reply("Представим, что вы уже выбрали коллекцию из перечисленных. Что вы хотите сделать с данной коллекцией?", reply_markup=keyboard.edit_menu)
+    await message.reply(
+        "Представим, что вы уже выбрали коллекцию из перечисленных. Что вы хотите сделать с данной коллекцией?",
+        reply_markup=keyboard.edit_menu)
 
 
 @dp.message(F.text == "Добавить значок")
 async def send_badge_handler(message: Message, state: FSMContext) -> None:
-    await message.reply("Пожалуйста, отправьте фото со значком, который вы хотите добавить в коллекцию.", reply_markup=keyboard.back_menu)
+    await message.reply("Пожалуйста, отправьте фото со значком, который вы хотите добавить в коллекцию.",
+                        reply_markup=keyboard.back_menu)
     await state.set_state(States.add_badge)
 
 
@@ -384,7 +395,8 @@ async def add_badge_handler(message: Message, state: FSMContext) -> None:
 
 @dp.message(F.text == "Удалить значок")
 async def send_name_handler(message: Message, state: FSMContext) -> None:
-    await message.reply("Пожалуйста, отправьте фото со значком, который вы хотите добавить в коллекцию.", reply_markup=keyboard.back_menu)
+    await message.reply("Пожалуйста, отправьте фото со значком, который вы хотите добавить в коллекцию.",
+                        reply_markup=keyboard.back_menu)
     await state.set_state(States.add_badge)
 
 
@@ -395,7 +407,7 @@ async def instruction_handler(message: Message) -> None:
         "1. Сделайте фотографию в высоком разрешении.\n"
         "2. Обеспечьте хорошее освещение.\n"
         "3. Используйте контрастный фон для фотографирования значков.\n"
-        "4. Значки должны располагаться на достаточном расстоянии друг от друга.\n"
+        "4. Значки должны располагаться на достаточном расстоянии друг от друга.\n\n"
         "*Ограничения:*\n"
         "1. Один пользователь может иметь не более 100 коллекций.\n"
         "2. Одна коллекция может содержать не более 200 фотографий.\n"
