@@ -89,11 +89,11 @@ class Db:
             raise Exception("[Ошибка] Неверное название коллекции или коллекция с таким именем уже существует.")
 
 
-    #вернёт id-коллекции и name-название
+    # вернёт id-коллекции и name-название
     def get_list_collection(self, id_user):
-        message = self.exec_query_all(f"""select id, name  from {schema_name}.collections where (id_user={id_user})""",
+        message = self.exec_query_all(f"""select id, name from {schema_name}.collections where (id_user={id_user})""",
                                  "[INFO] Collection list were received")
-        if len(message) ==0:
+        if len(message) == 0:
             return("Нет коллекций")
         else:
             return message
@@ -106,12 +106,12 @@ class Db:
 
     def edit_favorites(self, id_collection, is_favorites):
         return self.exec_query(
-            f"""UPDATE {schema_name}.collections SET favorites = {is_favorites} where id = {id_collection}""",
+            f"""update {schema_name}.collections set favorites = {is_favorites} where id = {id_collection}""",
             "[INFO] The collection is marked as favorites", False)
 
 
     def get_list_favorites(self, id_user):
-        message = self.exec_query_all(f"""select id, name  from {schema_name}.collections where (id_user={id_user} AND favorites=true)""",
+        message = self.exec_query_all(f"""select id, name  from {schema_name}.collections where (id_user={id_user} and favorites=true)""",
                                       "[INFO] Favorites list were received")
         if len(message) == 0:
             return ("Нет избранных коллекций")

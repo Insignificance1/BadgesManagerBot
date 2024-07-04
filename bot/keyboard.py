@@ -37,7 +37,7 @@ yes_no_menu = ReplyKeyboardMarkup(
 )
 
 # Клавиавтура коллекций
-collection_menu = ReplyKeyboardMarkup(
+collections_menu = ReplyKeyboardMarkup(
     keyboard=[
         [
             KeyboardButton(text="Избранное"),
@@ -52,7 +52,8 @@ collection_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-favorite_collection_menu = ReplyKeyboardMarkup(
+# Клавиатура для избранных коллекций
+favorite_collections_menu = ReplyKeyboardMarkup(
     keyboard=[
         [
             KeyboardButton(text="Добавить в избранное"),
@@ -60,14 +61,15 @@ favorite_collection_menu = ReplyKeyboardMarkup(
         ],
         [
             KeyboardButton(text="Изменить название"),
-            KeyboardButton(text="Назад")
-        ]
+            KeyboardButton(text="Выгрузить в PDF")
+        ],
+        [KeyboardButton(text="Назад")]
     ],
     resize_keyboard=True
 )
 
 # Клавиатура для коллекций
-edit_menu = ReplyKeyboardMarkup(
+all_collections_menu = ReplyKeyboardMarkup(
     keyboard=[
         [
             KeyboardButton(text="Изменить название"),
@@ -77,7 +79,10 @@ edit_menu = ReplyKeyboardMarkup(
             KeyboardButton(text="Добавить значок в коллекцию"),
             KeyboardButton(text="Вывести недостающие значки")
         ],
-        [KeyboardButton(text="Назад")]
+        [
+            KeyboardButton(text="Выгрузить в PDF"),
+            KeyboardButton(text="Назад")
+        ]
     ],
     resize_keyboard=True
 )
