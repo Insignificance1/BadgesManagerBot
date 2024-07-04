@@ -55,6 +55,16 @@ collection_menu = ReplyKeyboardMarkup(
     ]
 )
 
+favorite_collection_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Изменить название")],
+        [KeyboardButton(text="Добавить в избранное")],
+        [KeyboardButton(text="Удалить из избранного")],
+        [KeyboardButton(text="Назад")]
+    ],
+    resize_keyboard=True
+)
+
 # Клавиатура редактирования коллекции
 edit_menu = ReplyKeyboardMarkup(
     keyboard=[

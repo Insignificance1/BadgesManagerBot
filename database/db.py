@@ -19,6 +19,7 @@ class Db:
         except Exception as e:
             print(f"[INFO] Error while connecting to PostgreSQL: {e}")
 
+
     def exec_query(self, update, info_message, query_type: bool):
         try:
             connection = ps.connect(
@@ -64,9 +65,10 @@ class Db:
     def insert_image(self, id_user, path, id_collection):
         # SQL-запрос для вставки данных
         self.exec_query(f"""
-            INSERT INTO images (id_user, path, id_collection)
+            INSERT INTO {schema_name}.images (id_user, path, id_collection)
             VALUES ('{id_user}','{path}', '{id_collection}')
             ""","[INFO] Image was added", True)
+
 
     def add_collection(self, id_user, name_collection):
         if 3 <= len(name_collection) <= 100 and not self.contains_collection_name(id_user, name_collection):
@@ -83,37 +85,54 @@ class Db:
         else:
             raise Exception("[Ошибка] Неверное название коллекции или коллекция с таким именем уже существует.")
 
+
     #вернёт id-коллекции и name-название
     def get_list_collection(self, id_user):
-        message = self.exec_query_all(f"""select id, name  from public.collections where (id_user={id_user})""",
+        message = self.exec_query_all(f"""select id, name  from {schema_name}.collections where (id_user={id_user})""",
                                  "[INFO] Collection list were received")
         if len(message) ==0:
             return("Нет коллекций")
         else:
             return message
 
+
     def get_all_images(self, id_collection):
-        return self.exec_query_all(f"""select path from public.images where (id_collection={id_collection})""",
+        return self.exec_query_all(f"""select path from {schema_name}.images where (id_collection={id_collection})""",
                                  "[INFO] Collection list were received")
 
-    def add_favorities(self, id_collection):
+
+    def edit_favorites(self, id_collection, is_favorites):
         return self.exec_query(
-            f"""insert into favorities from public.collections where (id_collection={id_collection})""",
-            "[INFO] Collection list were received", False)
+            f"""UPDATE {schema_name}.collections SET favorites = {is_favorites} where id = {id_collection}""",
+            "[INFO] The collection is marked as favorites", False)
 
-    def get_all_images(self, id_collection):
-        return self.exec_query_all(f"""select path from public.images where (id_collection={id_collection})""",
-                                 "[INFO] Collection list were received")
+
+    def get_list_favorites(self, id_user):
+        message = self.exec_query_all(f"""select id, name  from {schema_name}.collections where id_user={id_user} AND favorites=true""",
+                                      "[INFO] Favorites list were received")
+        if len(message) == 0:
+            return ("Нет избранных коллекций")
+        else:
+            return message
+
+
+    #по id коллекции заменяет название
+    def update_name_collection(self, new_name, id_collection):
+        return self.exec_query(f"""UPDATE {schema_name}.collections SET name = {new_name} where id = {id_collection}""",
+                                     f"[INFO] Update name collection={new_name} with id={id_collection}",False)
+
 
     def contains_collection_name(self, id_user, name):
-        result = self.exec_query_all(f"select name from public.collections where id_user={id_user} AND name='{name}'",
+        result = self.exec_query_all(f"select name from {schema_name}.collections where id_user={id_user} AND name='{name}'",
                                      "[INFO] Checking for existence of collection name")
         return len(result) > 0
 
+
     def count_user_collections(self, id_user):
-        result = self.exec_query_all(f"select count(*) from public.collections where id_user={id_user}",
+        result = self.exec_query_all(f"select count(*) from {schema_name}.collections where id_user={id_user}",
                                      "[INFO] Counting collections for user")
         return len(result)
+
 
     #(get_all_images(4))
     #def del_collection(id_user, id_collection):
@@ -126,7 +145,7 @@ class Db:
     # add_collection(1216034152, 'abeb')
 
     # Пример использования функции
-    n = 44
+    #n = 44
     # for i in range(0, n, +1):
         # insert_image(id_user=1216034152, path=f'../Photo/noBg/AgACAgIAAxkBAAIL_WaEVVgochVy2L0z1LLPzjAtAprtAAKe3zEbU5EgSPIO6FYarG0EAQADAgADeQADNQQ_{i}.png', collection_id=8)
 
