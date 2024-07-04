@@ -120,7 +120,7 @@ back_menu = ReplyKeyboardMarkup(
 )
 
 # Промежуточная клавиатура между нарезкой фоток и отправкой их
-function2_menu = ReplyKeyboardMarkup(
+align_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Выровнять")],
         [KeyboardButton(text="Продолжить")],
