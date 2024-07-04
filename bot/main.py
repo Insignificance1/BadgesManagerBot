@@ -33,48 +33,41 @@ db = Db()
 
 # Состояния FSM
 class States(StatesGroup):
-    waiting_for_photo = State()  # Состояние ожидания фото для разметки
-    function_photo = State()  # Состояние ожидания функции
-    change_collection_name = State()  # Состояние ожидания ввода названия коллекции
-    add_badge = State()  # Состояние ожидания фото значка в модуле редактирования
-    state_list = State()  # Состояние считывания сообщения с номером коллекции
-    state_favorite_list = State()  # Состояние считывания сообщения с номером избранной коллекции
-    state_add_favorite_list = State()  # Состояние считывания сообщения с номером коллекции для добавления в избранное
-    state_del_favorite_list = State()  # Состояние считывания сообщения с номером коллекции для удаления из избранного
-    change_favorite_collection_name = State()  # Состояние ожидания ввода названия избранной коллекции
-    waiting_for_new_name = State()  # Ожидает задания имени
+    waiting_for_photo = State()                 # Ожидание фото для разметки
+    choose_function_photo = State()             # Ожидание выбора функции обработки фото
+    change_collection_name = State()            # Ожидание ввода названия коллекции
+    add_badge = State()                         # Ожидание фото значка в модуле редактирования
+    state_list = State()                        # Состояние считывания сообщения с номером коллекции
+    state_favorite_list = State()               # Состояние считывания сообщения с номером избранной коллекции
+    state_add_favorite_list = State()           # Состояние считывания сообщения с номером коллекции для добавления в избранное
+    state_del_favorite_list = State()           # Состояние считывания сообщения с номером коллекции для удаления из избранного
+    change_favorite_collection_name = State()   # Состояние ожидания ввода названия избранной коллекции
+    waiting_for_new_name = State()              # Ожидает задания имени
     all_collection_create = State()
 
 
-# Основные команды
+# Знакомство с пользователем
 @dp.message(CommandStart())
 async def command_start_handler(message: Message) -> None:
-    # id и имя пользователя
+    # Добавляем пользователя в БД
     user_id: long = message.from_user.id
     user_full_name = message.from_user.full_name
     db.add_user(user_id)
     # Логируем взаимодействие с пользователем
     logging.info(f'{user_id=} {user_full_name=}')
-    await message.answer(f"Привет, {user_full_name}! Я бот, для работы с коллекционными значками.",
+    await message.answer(f"Привет, {user_full_name}! Я бот для работы с коллекционными значками.",
                          reply_markup=keyboard.main_menu)
 
-
-@dp.message(F.text == "Назад")
-async def back_handler(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.reply("Вы вернулись в главное меню.", reply_markup=keyboard.main_menu)
-
-
-# Обработчики команд с фото
+# Ожидание отправки фото
 @dp.message(F.text == "Отправить фото")
 async def send_photo_handler(message: Message, state: FSMContext) -> None:
     await message.answer("Пожалуйста, отправьте фото.", reply_markup=keyboard.back_menu)
     await state.set_state(States.waiting_for_photo)
 
-
+# Закачка полученного фото
 @dp.message(F.photo, States.waiting_for_photo)
 async def get_photo_handler(message: Message, state: FSMContext) -> None:
-    # Скачивание оригинала
+    # Скачиваем оригинал
     photo_id = message.photo[-1]
     file_info = await bot.get_file(photo_id.file_id)
     image_path = f"../Photo/original/{photo_id.file_id}.jpg"
@@ -83,10 +76,10 @@ async def get_photo_handler(message: Message, state: FSMContext) -> None:
     await message.answer("Фото получено.", reply_markup=keyboard.function_menu)
     await state.clear()
     await state.update_data(image_path=image_path, photo_id=photo_id.file_id)
-    await state.set_state(States.function_photo)
+    await state.set_state(States.choose_function_photo)
 
-
-@dp.message(F.text == "Посчитать количество", States.function_photo)
+# Подсчёт количества значков на фото
+@dp.message(F.text == "Посчитать количество", States.choose_function_photo)
 async def count_handler(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     image_path = data.get('image_path')
@@ -94,78 +87,89 @@ async def count_handler(message: Message, state: FSMContext) -> None:
     loop = asyncio.get_running_loop()
     num_objects = await loop.run_in_executor(executor, segmenter.get_count, image_path)
     loading_task.cancel()
+    # Даём пользователю возможность дальнейшей нарезки фото
     await message.answer(f"Количество найденных объектов на фотографии: {num_objects}",
                          reply_markup=keyboard.function_menu)
 
-
-@dp.message(F.text == "Нарезать на отдельные значки", States.function_photo)
+# Нарезка фото на отдельные значки
+@dp.message(F.text == "Нарезать на отдельные значки", States.choose_function_photo)
 async def cut_handler(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     image_path = data.get('image_path')
     photo_id = data.get('photo_id')
+    # Запускаем параллельную задачу для режима ожидания
     loading_task = asyncio.create_task(send_loading_message(message.chat.id))
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(executor, segmenter.segment_image, image_path, photo_id)
     num_objects = result
+    # Завершаем режима ожидания
+    loading_task.cancel()
+    # Выводим нарезанных фотографий
     for idx in range(num_objects):
         cropped_img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
         photo_cropped = FSInputFile(cropped_img_path)
         await bot.send_photo(chat_id=message.chat.id, photo=photo_cropped)
     await state.update_data(num_objects=num_objects)
-    loading_task.cancel()
     await message.answer("Коллекция полная?", reply_markup=keyboard.yes_no_menu)
 
-
+# Обработка для полной коллекции после нарезки
 @dp.message(F.text == "Да")
 async def yes_handler(message: Message, state: FSMContext) -> None:
     await state.set_state(States.all_collection_create)
     await message.answer("Введите название коллекции.", reply_markup=keyboard.back_menu)
 
-
+# Создание коллекции после нарезки
 @dp.message(F.text, States.all_collection_create)
 async def create_collection_handler(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     loop = asyncio.get_running_loop()
     try:
+        # Добавляем коллекцию с параллельным режимом ожидания
         loading_task = asyncio.create_task(send_loading_message(message.chat.id))
         result = await loop.run_in_executor(executor, db.add_collection, message.from_user.id, message.text)
         reply, id_collection = result
         num_objects = data.get('num_objects')
         photo_id = data.get('photo_id')
+        # Добавляем изображения в соответствующую коллекцию
         for idx in range(num_objects):
             img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
             await loop.run_in_executor(executor, db.insert_image, message.from_user.id, img_path, id_collection)
         await message.reply(reply, reply_markup=keyboard.main_menu)
+        # Завершаем режим ожидания
         loading_task.cancel()
+    # Обрабатываем ошибки из других методов
     except Exception as e:
         await message.reply(str(e), reply_markup=keyboard.main_menu)
         await yes_handler(message, state)
     await state.clear()
 
-
+# Обработка для неполной коллекции после нарезки
 @dp.message(F.text == "Нет")
 async def no_handler(message: Message, state: FSMContext) -> None:
+    # Создаём архив с параллельным режимом ожидания
     loading_task = asyncio.create_task(send_loading_message(message.chat.id))
     data = await state.get_data()
     photo_id = data.get('photo_id')
     num_objects = data.get('num_objects')
-    zip_file_path = f'../Photo/ZIP/{photo_id}.zip'
+    zip_path = f'../Photo/ZIP/{photo_id}.zip'
     converter = Converter()
     loop = asyncio.get_running_loop()
-    await loop.run_in_executor(executor, converter.convert_to_zip, photo_id, num_objects, zip_file_path)
-    zip_file = FSInputFile(zip_file_path)
+    await loop.run_in_executor(executor, converter.convert_to_zip, photo_id, num_objects, zip_path)
+    # Отправляем архив
+    zip_file = FSInputFile(zip_path)
     await message.reply("В таком случае держите архив с размеченными значками.", reply_markup=keyboard.main_menu)
     await bot.send_document(chat_id=message.chat.id, document=zip_file)
+    # Завершаем режим ожидания
     loading_task.cancel()
-    os.remove(zip_file_path)
+    # Удаляем архив
+    os.remove(zip_path)
 
-
-# Обработчики команд с коллекциями
+# Выбор действия над коллекциями
 @dp.message(F.text == "Коллекции")
 async def collections_handler(message: Message) -> None:
     await message.reply("Выберете в меню желаемое действие.", reply_markup=keyboard.collection_menu)
 
-
+# Выбор действия над избранными коллекциями
 @dp.message(F.text == "Избранное")
 async def favourites_list_handler(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
@@ -327,7 +331,7 @@ async def num_collection_handler(message: Message, state: FSMContext) -> None:
     await bot.send_document(chat_id=message.chat.id, document=pdf)
     loading_task.cancel()
 
-
+# Форматирование списка коллекций
 def format_collection_list(collections):
     if collections == 'Нет коллекций' or collections == 'Нет избранных коллекций':
         return collections
@@ -411,7 +415,8 @@ async def instruction_handler(message: Message) -> None:
         "*Ограничения:*\n"
         "1. Один пользователь может иметь не более 100 коллекций.\n"
         "2. Одна коллекция может содержать не более 200 фотографий.\n"
-        "3. Название коллекции должно содержать от 3 до 100 символов."
+        "3. Название коллекции должно содержать от 3 до 100 символов.\n"
+        "4. Название значка должно содержать от 3 до 60 символов."
     )
     await message.answer(instruction, reply_markup=keyboard.instruction_menu, parse_mode='Markdown')
 
@@ -442,6 +447,11 @@ async def send_loading_message(chat_id):
     except asyncio.CancelledError:
         await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
 
+# Возвращение в главное меню
+@dp.message(F.text == "Назад")
+async def back_handler(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.reply("Вы вернулись в главное меню.", reply_markup=keyboard.main_menu)
 
 async def main() -> None:
     # Начало опроса обновлений

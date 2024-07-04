@@ -19,9 +19,10 @@ class Db:
         except Exception as e:
             print(f"[INFO] Error while connecting to PostgreSQL: {e}")
 
-
+    # Выполнение SQL-запроса
     def exec_query(self, update, info_message, query_type: bool):
         try:
+            # Подключаемся к БД
             connection = ps.connect(
                 host=host,
                 user=user,
@@ -30,6 +31,7 @@ class Db:
             )
             connection.autocommit = True
             with connection.cursor() as cursor:
+                # Выполняем SQL-запрос
                 cursor.execute(update)
                 print(info_message)
                 if query_type:
@@ -63,15 +65,16 @@ class Db:
 
 
     def insert_image(self, id_user, path, id_collection):
-        # SQL-запрос для вставки данных
+        # Отправляем SQL-запрос для добавления изображения в коллекцию
         self.exec_query(f"""
-            INSERT INTO {schema_name}.images (id_user, path, id_collection)
-            VALUES ('{id_user}','{path}', '{id_collection}')
+            insert into {schema_name}.images (id_user, path, id_collection)
+            values ('{id_user}','{path}', '{id_collection}')
             ""","[INFO] Image was added", True)
 
 
     def add_collection(self, id_user, name_collection):
         if 3 <= len(name_collection) <= 100 and not self.contains_collection_name(id_user, name_collection):
+            # Отправляем SQL-запрос для добавления коллекции
             query = f"""insert into {schema_name}.collections (id_user, name)
                         values ('{id_user}', '{name_collection}')
                         returning id"""
