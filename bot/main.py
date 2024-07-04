@@ -40,6 +40,8 @@ class States(StatesGroup):
     state_favorite_list = State() # Состояние считывания сообщения с номером избранной коллекции
     state_add_favorite_list = State() # Состояние считывания сообщения с номером коллекции для добавления в избранное
     state_del_favorite_list = State() # Состояние считывания сообщения с номером коллекции для удаления из избранного
+    change_favorite_collection_name = State() # Состояние ожидания ввода названия избранной коллекции
+    waiting_for_new_name = State() # Ожидает задания имени
     all_collection_create = State()
 
 
@@ -166,8 +168,78 @@ async def favourites_list_handler(message: Message, state: FSMContext) -> None:
     await state.set_state(States.state_favorite_list)
 
 
+@dp.message(F.text == "Изменить название")
+async def send_name_handler(message: Message, state: FSMContext) -> None:
+    await message.reply("Просим вас ввести номер коллекции.", reply_markup=keyboard.back_menu)
+    await state.clear()
+    await state.set_state(States.change_collection_name)
+    await state.set_state(States.change_favorite_collection_name)
+
+
+#Принимает id коллекции которую надо сменить и направляет на смену имени
+@dp.message(F.text, States.change_favorite_collection_name)
+@dp.message(F.text, States.change_collection_name)
+async def change_name_handler(message: Message, state: FSMContext) -> None:
+    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
+    user_id = message.from_user.id
+    loop = asyncio.get_running_loop()
+    if await state.get_state() == States.change_collection_name.state:
+        bd_message = await loop.run_in_executor(executor, db.get_list_collection, user_id)
+        reply_handler = all_list_handler
+    else:
+        bd_message = await loop.run_in_executor(executor, db.get_list_favorites, user_id)
+        reply_handler = favourites_list_handler
+    try:
+        collection_id, name = bd_message[int(message.text) - 1]
+    except Exception:
+        await message.reply("Введите корректный номер коллекции в пределах списка.")
+        loading_task.cancel()
+        await reply_handler(message, state)
+        return
+    await message.reply("Просим вас ввести новое название для коллекции",reply_markup=keyboard.back_menu)
+
+    await state.update_data(collection_id=collection_id)
+    await state.set_state(States.waiting_for_new_name)
+
+
+#Ожидание пока пользователь впишет новое имя коллекции
+@dp.message(F.text, States.waiting_for_new_name)
+async def new_name_handler(message: Message, state: FSMContext) -> None:
+    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
+    loop = asyncio.get_running_loop()
+    new_name = message.text
+    data = await state.get_data()
+    collection_id = data['collection_id']
+    user_id = message.from_user.id
+    result = await loop.run_in_executor(executor, db.contains_collection_name, user_id, new_name)
+    if  result > 0:
+        await message.reply("Такое название коллекции уже существует. Повторите попытку.",
+                            reply_markup=keyboard.back_menu)
+    else:
+        await loop.run_in_executor(executor, db.update_name_collection,new_name, collection_id)
+        await message.reply("Название коллекции успешно изменено.", reply_markup=keyboard.main_menu)
+        await state.clear()
+        await message.answer(f"*Действия для {new_name} выполнены*\n",
+                             reply_markup=keyboard.collection_menu, parse_mode='Markdown')
+        loading_task.cancel()
+
+
+
+
+#    new_name = message.text
+#    if await loop.run_in_executor(executor, db.contains_collection_name, user_id, new_name):  # PS: Предполагаю такой метод в классе Database
+#        await message.reply("Такое название коллекции уже существует. Повторите попытку.", reply_markup=keyboard.back_menu)
+#    else:
+#        await loop.run_in_executor(executor, db.update_name_collection, new_name, collection_id) # PS: Предполагаю такой метод в классе Database
+#        await message.reply("Название коллекции успешно изменено.", reply_markup=keyboard.main_menu)
+#    await state.clear()
+#    await message.answer(f"*Действия для {new_name} выполнены*\n",
+#                         reply_markup=keyboard.collection_menu, parse_mode='Markdown')
+#    loading_task.cancel()
+
+
 @dp.message(F.text == "Добавить в избранное")
-async def favourites_list_handler(message: Message, state: FSMContext) -> None:
+async def add_favourites_list_handler(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     await message.reply(
         "*Все ваши коллекции\nВведите номер коллекции которую желаете добавить в избранное*\n" + format_collection_list(db.get_list_collection(user_id)),
@@ -176,7 +248,7 @@ async def favourites_list_handler(message: Message, state: FSMContext) -> None:
 
 
 @dp.message(F.text == "Удалить из избранного")
-async def favourites_list_handler(message: Message, state: FSMContext) -> None:
+async def del_favourites_list_handler(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     await message.reply(
         "*Ваш список избранного\nВведите номер коллекции которую желаете удалить из избранного*\n" + format_collection_list(db.get_list_favorites(user_id)),
@@ -186,7 +258,7 @@ async def favourites_list_handler(message: Message, state: FSMContext) -> None:
 
 @dp.message(F.text, States.state_del_favorite_list)
 @dp.message(F.text, States.state_add_favorite_list)
-async def add_favorite_handler(message: Message, state: FSMContext) -> None:
+async def edit_favorite_handler(message: Message, state: FSMContext) -> None:
     loading_task = asyncio.create_task(send_loading_message(message.chat.id))
     user_id = message.from_user.id
     loop = asyncio.get_running_loop()
@@ -218,6 +290,7 @@ async def all_list_handler(message: Message, state: FSMContext) -> None:
         reply_markup=keyboard.collection_menu, parse_mode='Markdown')
     await state.set_state(States.state_list)
 
+
 @dp.message(F.text, States.state_favorite_list)
 @dp.message(F.text, States.state_list)
 async def num_collection_handler(message: Message, state: FSMContext) -> None:
@@ -248,7 +321,7 @@ async def num_collection_handler(message: Message, state: FSMContext) -> None:
 
 
 def format_collection_list(collections):
-    if (collections == 'Нет коллекций'):
+    if (collections == 'Нет избранных коллекций'):
         return collections
     else:
         message = ""
@@ -271,24 +344,12 @@ async def remove_handler(message: Message) -> None:
 async def edit_handler(message: Message) -> None:
     await message.reply("Представим, что вы уже выбрали коллекцию из перечисленных. Что вы хотите сделать с данной коллекцией?", reply_markup=keyboard.edit_menu)
 
-@dp.message(F.text == "Изменить название")
-async def send_name_handler(message: Message, state: FSMContext) -> None:
-    await message.reply("Просим вас ввести новое название для вашей коллекции.", reply_markup=keyboard.back_menu)
-    await state.set_state(States.change_collection_name)
-
-#@dp.message(States.change_collection_name)
-#async def change_name_handler(message: Message) -> None:
-    #if db.contains('collections_name', message):  # PS: Предполагаю такой метод в классе Database
-    #    await message.reply("Такое название коллекции уже существует. Повторите попытку.", reply_markup=keyboard.back_menu)
-    #else:
-    #    db.update_name_collection(new_name, id_collection) # PS: Предполагаю такой метод в классе Database
-    #    await message.reply("Название коллекции успешно изменено.", reply_markup=keyboard.main_menu)
-    #pass
 
 @dp.message(F.text == "Добавить значок")
 async def send_badge_handler(message: Message, state: FSMContext) -> None:
     await message.reply("Пожалуйста, отправьте фото со значком, который вы хотите добавить в коллекцию.", reply_markup=keyboard.back_menu)
     await state.set_state(States.add_badge)
+
 
 @dp.message(F.photo, States.add_badge)
 async def add_badge_handler(message: Message, state: FSMContext) -> None:
@@ -319,6 +380,7 @@ async def add_badge_handler(message: Message, state: FSMContext) -> None:
     #     logging.error(f"Ошибка при добавлении фотографии в базу данных: {e}")
     #     await message.reply("Произошла ошибка при добавлении фотографии в базу данных.")
     pass
+
 
 @dp.message(F.text == "Удалить значок")
 async def send_name_handler(message: Message, state: FSMContext) -> None:
@@ -353,6 +415,7 @@ async def support_handler(message: Message) -> None:
     )
     await message.answer(answer, reply_markup=keyboard.main_menu),
 
+
 async def send_loading_message(chat_id):
     message = await bot.send_message(chat_id, "Ожидайте, бот думает")
     dots = ""
@@ -366,6 +429,7 @@ async def send_loading_message(chat_id):
             await asyncio.sleep(0.5)
     except asyncio.CancelledError:
         await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
+
 
 async def main() -> None:
     # Начало опроса обновлений

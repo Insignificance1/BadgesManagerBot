@@ -108,7 +108,7 @@ class Db:
 
 
     def get_list_favorites(self, id_user):
-        message = self.exec_query_all(f"""select id, name  from {schema_name}.collections where id_user={id_user} AND favorites=true""",
+        message = self.exec_query_all(f"""select id, name  from {schema_name}.collections where (id_user={id_user} AND favorites=true)""",
                                       "[INFO] Favorites list were received")
         if len(message) == 0:
             return ("Нет избранных коллекций")
@@ -118,14 +118,15 @@ class Db:
 
     #по id коллекции заменяет название
     def update_name_collection(self, new_name, id_collection):
-        return self.exec_query(f"""UPDATE {schema_name}.collections SET name = {new_name} where id = {id_collection}""",
-                                     f"[INFO] Update name collection={new_name} with id={id_collection}",False)
+        return self.exec_query(
+            f"""UPDATE {schema_name}.collections SET name='{new_name}' where id={id_collection}""",
+            f"[INFO] Update name collection={new_name} with id={id_collection}",True)
 
 
     def contains_collection_name(self, id_user, name):
         result = self.exec_query_all(f"select name from {schema_name}.collections where id_user={id_user} AND name='{name}'",
                                      "[INFO] Checking for existence of collection name")
-        return len(result) > 0
+        return len(result)
 
 
     def count_user_collections(self, id_user):
