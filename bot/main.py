@@ -321,7 +321,7 @@ async def num_collection_handler(message: Message, state: FSMContext) -> None:
 
 
 def format_collection_list(collections):
-    if (collections == 'Нет избранных коллекций'):
+    if (collections == 'Нет коллекций' or collections == 'Нет избранных коллекций'):
         return collections
     else:
         message = ""
