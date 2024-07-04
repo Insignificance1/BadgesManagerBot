@@ -106,7 +106,7 @@ async def cut_handler(message: Message, state: FSMContext) -> None:
     loading_task = asyncio.create_task(send_loading_message(message.chat.id))
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(executor, segmenter.segment_image, image_path, photo_id)
-    text_file_path, num_objects = result
+    num_objects = result
     for idx in range(num_objects):
         cropped_img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
         photo_cropped = FSInputFile(cropped_img_path)
