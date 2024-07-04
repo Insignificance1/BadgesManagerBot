@@ -32,7 +32,8 @@ yes_no_menu = ReplyKeyboardMarkup(
             KeyboardButton(text="Нет")
         ],
         [KeyboardButton(text="Назад")]
-    ]
+    ],
+    resize_keyboard=True
 )
 
 # Клавиавтура коллекций
@@ -47,7 +48,8 @@ collection_menu = ReplyKeyboardMarkup(
             KeyboardButton(text="Удалить коллекцию")
         ],
         [KeyboardButton(text="Назад")]
-    ]
+    ],
+    resize_keyboard=True
 )
 
 favorite_collection_menu = ReplyKeyboardMarkup(
@@ -89,7 +91,8 @@ keyboard = InlineKeyboardMarkup(inline_keyboard=[
             InlineKeyboardButton(text="➡️", callback_data="next")
         ],
         [InlineKeyboardButton(text="❌", callback_data="del")]
-    ]
+    ],
+    resize_keyboard=True
 )
 
 # Клавиатура инструкции
