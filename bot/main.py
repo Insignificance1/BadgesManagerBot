@@ -75,11 +75,13 @@ async def command_start_handler(message: Message) -> None:
     await message.answer(f"Привет, {user_full_name}! Я бот для работы с коллекционными значками.",
                          reply_markup=keyboard.main_menu)
 
+
 # Ожидание отправки фото
 @dp.message(F.text == "Отправить фото")
 async def send_photo_handler(message: Message, state: FSMContext) -> None:
     await message.answer("Пожалуйста, отправьте фото.", reply_markup=keyboard.back_menu)
     await state.set_state(States.waiting_for_photo)
+
 
 # Закачка полученного фото
 @dp.message(F.photo, States.waiting_for_photo)
@@ -95,6 +97,7 @@ async def get_photo_handler(message: Message, state: FSMContext) -> None:
     await state.update_data(image_path=image_path, photo_id=photo_id.file_id)
     await state.set_state(States.choose_function_photo)
 
+
 # Подсчёт количества значков на фото
 @dp.message(F.text == "Посчитать количество", States.choose_function_photo)
 async def count_handler(message: Message, state: FSMContext) -> None:
@@ -109,6 +112,7 @@ async def count_handler(message: Message, state: FSMContext) -> None:
                          reply_markup=keyboard.function_menu)
     # Завершаем режима ожидания
     loading_task.cancel()
+
 
 # Нарезка фото на отдельные значки
 @dp.message(F.text == "Нарезать на отдельные значки", States.choose_function_photo)
@@ -131,6 +135,7 @@ async def cut_handler(message: Message, state: FSMContext) -> None:
         await bot.send_photo(chat_id=message.chat.id, photo=photo_cropped, reply_markup=keyboard.align_menu)
     await state.update_data(image_path=image_path, photo_id=photo_id, num_objects=num_objects)
 
+
 # Подготовка к выравниванию изображений
 @dp.message(F.text == "Выровнять", States.align_function_photo)
 async def edit_handler(message: Message, state: FSMContext) -> None:
@@ -147,6 +152,7 @@ async def edit_handler(message: Message, state: FSMContext) -> None:
     await bot.send_photo(chat_id=message.chat.id, photo=photo_aligned, reply_markup=edit_keyboard,
                          caption='ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ')
     await state.update_data(edit_idx=idx)
+
 
 # Выравнивание изображений
 @dp.callback_query(lambda c: c.data.startswith('edit_'))
@@ -195,16 +201,19 @@ async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext
     await state.update_data(edit_idx=edit_idx)
     await callback_query.answer()
 
+
 # Продолжение после получения значков после нарезки
 @dp.message(F.text == "Продолжить", States.align_function_photo)
 async def continue_handler(message: Message) -> None:
     await message.answer("Коллекция полная?", reply_markup=keyboard.yes_no_menu)
+
 
 # Обработка для полной коллекции после нарезки
 @dp.message(F.text == "Да")
 async def yes_handler(message: Message, state: FSMContext) -> None:
     await state.set_state(States.all_collection_create)
     await message.answer("Введите название коллекции.", reply_markup=keyboard.back_menu)
+
 
 # Создание коллекции после нарезки
 @dp.message(F.text, States.all_collection_create)
@@ -233,6 +242,7 @@ async def create_after_yes_handler(message: Message, state: FSMContext) -> None:
         loading_task.cancel()
     await state.clear()
 
+
 # Обработка для неполной коллекции после нарезки
 @dp.message(F.text == "Нет")
 async def no_handler(message: Message, state: FSMContext) -> None:
@@ -254,10 +264,12 @@ async def no_handler(message: Message, state: FSMContext) -> None:
     # Удаляем архив
     os.remove(zip_path)
 
+
 # Выбор действия над коллекциями
 @dp.message(F.text == "Коллекции")
 async def collections_handler(message: Message) -> None:
     await message.reply("Выберите в меню желаемое действие.", reply_markup=keyboard.collections_menu)
+
 
 # Выбор действия над списком коллекций
 @dp.message(F.text == "Весь список")
@@ -266,7 +278,8 @@ async def all_list_handler(message: Message, state: FSMContext) -> None:
                          reply_markup=keyboard.all_collections_menu)
     await state.set_state(States.collections)
 
-#Выводит недостающие значки
+
+# Вывод недостающих значки
 @dp.message(F.text == "Вывести недостающие значки")
 async def null_badges_list_handler(message: Message, state: FSMContext) -> None:
     await message.answer('*Выберете коллекцию*', reply_markup=keyboard.all_collections_menu)
@@ -279,6 +292,7 @@ async def favourites_list_handler(message: Message, state: FSMContext) -> None:
                          reply_markup=keyboard.favorite_collections_menu)
     await state.set_state(States.favorites)
 
+
 # Выбор коллекции для выгрузки в PDF-файл
 @dp.message(F.text == "Выгрузить в PDF", States.collections)
 async def pdf_collections_handler(message: Message) -> None:
@@ -287,6 +301,7 @@ async def pdf_collections_handler(message: Message) -> None:
                          reply_markup=await format_collection_list(db.get_list_collection(user_id), 'pdf_collection_'),
                          parse_mode='Markdown')
     await remove_keyboard(message)
+
 
 # Выбор избранной коллекции для выгрузки в PDF-файл
 @dp.message(F.text == "Выгрузить в PDF", States.favorites)
@@ -305,6 +320,7 @@ async def pdf_collections_handler(message: Message) -> None:
     await message.answer("*Выберите коллекцию для выгрузки в PDF*\n",
                          reply_markup=format_collection_list(db.get_list_collection(user_id), 'pdf_collection_'),
                          parse_mode='Markdown')
+
 
 # Выгрузка в PDF-файл выбранной коллекции
 @dp.callback_query(lambda c: c.data.startswith("pdf_collection_") or c.data.startswith("pdf_favorite_"))
@@ -330,6 +346,7 @@ async def send_pdf(callback_query: CallbackQuery):
     except TelegramBadRequest:
         raise Exception("Что-то пошло не так. Вероятно, кнопка была нажата несколько раз.")
 
+
 # Выбор коллекции для смены названия
 @dp.message(F.text == "Изменить название", States.collections)
 async def send_name_handler(message: Message) -> None:
@@ -339,6 +356,7 @@ async def send_name_handler(message: Message) -> None:
                          parse_mode='Markdown')
     await remove_keyboard(message)
 
+
 # Выбор избранной коллекции для смены названия
 @dp.message(F.text == "Изменить название", States.favorites)
 async def send_name_handler(message: Message) -> None:
@@ -347,6 +365,7 @@ async def send_name_handler(message: Message) -> None:
                          reply_markup=await format_collection_list(db.get_list_favorites(user_id), 'name_favorite_'),
                          parse_mode='Markdown')
     await remove_keyboard(message)
+
 
 # Ожидание ввода названия коллекции
 @dp.callback_query(lambda c: c.data.startswith("name_collection_") or c.data.startswith("name_favorite_"))
@@ -359,6 +378,7 @@ async def change_name_handler(callback_query: CallbackQuery, state: FSMContext) 
     await state.update_data(collection_id=collection_id)
     new_state = States.waiting_for_name_collection if type_id == 1 else States.waiting_for_name_favorite
     await state.set_state(new_state)
+
 
 # Смена названия коллекции
 @dp.message(F.text, States.waiting_for_name_collection)
@@ -388,6 +408,7 @@ async def new_name_handler(message: Message, state: FSMContext) -> None:
     # Завершаем режим ожидания
     loading_task.cancel()
 
+
 # Просмотр коллекции
 @dp.message(F.text == "Посмотреть коллекцию")
 async def show_handler(message: Message) -> None:
@@ -407,6 +428,7 @@ async def show_handler(message: Message) -> None:
             db.get_list_collection(user_id), 'show_favorite_'), parse_mode='Markdown')
     await remove_keyboard(message)
 
+
 # Выбор коллекции для добавления в избранное
 @dp.message(F.text == "Добавить в избранное")
 async def add_favorites_list_handler(message: Message) -> None:
@@ -416,6 +438,7 @@ async def add_favorites_list_handler(message: Message) -> None:
             db.get_list_favorites(user_id, False), 'add_favorite_'), parse_mode='Markdown')
     await remove_keyboard(message)
 
+
 # Выбор коллекции для удаления из избранного
 @dp.message(F.text == "Удалить из избранного")
 async def del_favorites_list_handler(message: Message) -> None:
@@ -424,6 +447,7 @@ async def del_favorites_list_handler(message: Message) -> None:
         "*Выберите коллекцию для удаления из избранного*\n", reply_markup=await format_collection_list(
             db.get_list_favorites(user_id), "delete_favorite_"), parse_mode='Markdown')
     await remove_keyboard(message)
+
 
 # Изменение флага избранности для выбранной коллекции
 @dp.callback_query(lambda c: c.data.startswith("add_favorite_") or c.data.startswith("delete_favorite_"))
@@ -446,6 +470,7 @@ async def edit_favorite_handler(callback_query: CallbackQuery) -> None:
                                             reply_markup=keyboard.favorite_collections_menu)
     loading_task.cancel()
 
+
 # Выбор коллекции для пополнения
 @dp.message(F.text == "Пополнить коллекцию")
 async def add_handler(message: Message) -> None:
@@ -455,6 +480,7 @@ async def add_handler(message: Message) -> None:
             db.get_list_collection(user_id), 'add_badges_'), parse_mode='Markdown')
     await remove_keyboard(message)
 
+
 # Ожидание архива с изображениями для пополнения коллекции
 @dp.callback_query(lambda c: c.data.startswith("add_badges_"))
 async def add_badges_handler(callback_query: CallbackQuery, state: FSMContext) -> None:
@@ -463,6 +489,7 @@ async def add_badges_handler(callback_query: CallbackQuery, state: FSMContext) -
     await state.update_data(collection_id=collection_id, collection_name=name)
     await state.set_state(States.waiting_for_zip_add)
     await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+
 
 # Пополнение коллекции
 @dp.message(F.document, States.waiting_for_zip_add)
@@ -498,12 +525,14 @@ async def add_handler(message: Message, state: FSMContext) -> None:
     await message.reply("Отправьте ZIP-файл с изображениями.", reply_markup=keyboard.back_menu)
     await state.set_state(States.waiting_for_zip_create)
 
+
 # Ожидание ввода названия новой коллекции
 @dp.message(F.document, States.waiting_for_zip_create)
 async def get_zip_handler(message: Message, state: FSMContext) -> None:
     await state.update_data(zip_file_id=message.document.file_id)
     await message.reply("Файл получен. Введите название новой коллекции.", reply_markup=keyboard.back_menu)
     await state.set_state(States.add_new_collection_zip_name)
+
 
 # Создание коллекции
 @dp.message(F.text, States.add_new_collection_zip_name)
@@ -541,6 +570,7 @@ async def create_collection_handler(message: Message, state: FSMContext) -> None
 
     await state.clear()
 
+
 # Обработка архива
 async def process_zip_file(zip_file_id, collection_id, user_id, reply_func):
     loop = asyncio.get_running_loop()
@@ -571,6 +601,7 @@ async def process_zip_file(zip_file_id, collection_id, user_id, reply_func):
 
     await reply_func()
 
+
 # Выбор коллекции для удаления
 @dp.message(F.text == "Удалить коллекцию")
 async def delete_collection_handler(message: Message) -> None:
@@ -578,6 +609,7 @@ async def delete_collection_handler(message: Message) -> None:
     await message.answer("*Выберите коллекцию для её удаления*\n",
                          reply_markup=await format_collection_list(db.get_list_collection(user_id), 'delete_collection_'),
                          parse_mode='Markdown')
+
 
 # Удаление коллекции
 @dp.callback_query(lambda c: c.data.startswith("delete_collection_"))
@@ -593,6 +625,7 @@ async def delete_collection_number_handler(callback_query: CallbackQuery) -> Non
     # Завершаем режим ожидания
     loading_task.cancel()
 
+
 # Форматирование списка коллекций в InlineKeyboard
 async def format_collection_list(collections, prefix):
     new_keyboard = []
@@ -603,6 +636,7 @@ async def format_collection_list(collections, prefix):
             new_keyboard.append([InlineKeyboardButton(text=button_text, callback_data=callback_data)])
     new_keyboard.append([InlineKeyboardButton(text="Назад", callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=new_keyboard)
+
 
 # Получение id и названия коллекции
 async def get_collection_id_and_name(callback_query, loop=None, type_id=1):
@@ -618,6 +652,7 @@ async def get_collection_id_and_name(callback_query, loop=None, type_id=1):
         db_message = await loop.run_in_executor(executor, db.get_list_favorites, user_id, False)
     collection_id, name = db_message[int(callback_query.data.split("_")[2]) - 1]
     return collection_id, name
+
 
 # Вывод инструкции
 @dp.message(F.text == "Инструкция")
@@ -636,6 +671,7 @@ async def instruction_handler(message: Message) -> None:
     )
     await message.answer(instruction, reply_markup=keyboard.instruction_menu, parse_mode='Markdown')
 
+
 # Обращение к ТП
 @dp.message(F.text == "Обратиться к ТП")
 async def support_handler(message: Message) -> None:
@@ -647,6 +683,7 @@ async def support_handler(message: Message) -> None:
         "@sech14"
     )
     await message.answer(answer, reply_markup=keyboard.main_menu),
+
 
 # Режим ожидания
 async def send_loading_message(chat_id):
@@ -663,10 +700,12 @@ async def send_loading_message(chat_id):
     except asyncio.CancelledError:
         await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
 
+
 # Удаление клавиатуры
 async def remove_keyboard(message: Message) -> None:
     await message.answer("ㅤ", reply_markup=ReplyKeyboardRemove())
     await bot.delete_message(message.chat.id, message.message_id + 1)
+
 
 # Возвращение в главное меню для ReplyKeyboard
 @dp.message(F.text == "Назад")
@@ -674,11 +713,13 @@ async def back_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.reply("Вы вернулись в главное меню.", reply_markup=keyboard.main_menu)
 
+
 # Возвращение в главное меню для InlineKeyboard
 @dp.callback_query(lambda c: c.data == "main_menu")
 async def process_callback(callback_query: CallbackQuery) -> None:
     await callback_query.message.answer("Вы вернулись в главное меню.", reply_markup=keyboard.main_menu)
     await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+
 
 async def main() -> None:
     # Начало опроса обновлений
