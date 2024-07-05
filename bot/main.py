@@ -810,7 +810,7 @@ async def instruction_handler(message: Message) -> None:
         "1. Один пользователь может иметь не более 100 коллекций.\n"
         "2. Одна коллекция может содержать не более 200 фотографий.\n"
         "3. Название коллекции должно содержать от 3 до 55 символов.\n"
-        "4. Название значка должно содержать от 3 до 15 символов."
+        "4. Название значка должно содержать от 3 до 30 символов."
     )
     await message.answer(instruction, reply_markup=keyboard.instruction_menu, parse_mode='Markdown')
 

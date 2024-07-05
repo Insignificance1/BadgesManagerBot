@@ -74,7 +74,7 @@ class DataBase:
 
     # Добавление коллекции
     def add_collection(self, id_user, name_collection):
-        if 3 <= len(name_collection) <= 100 and not self.contains_collection_name(id_user, name_collection):
+        if 3 <= len(name_collection) <= 55 and not self.contains_collection_name(id_user, name_collection):
             # Отправляем SQL-запрос для добавления коллекции
             query = f"""insert into {schema_name}.collections (id_user, name)
                         values ('{id_user}', '{name_collection}')
