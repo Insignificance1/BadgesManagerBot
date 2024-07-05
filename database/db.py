@@ -138,14 +138,6 @@ class DataBase:
             f"""update {schema_name}.collections set favorites = {is_favorites} where id = {id_collection}""",
             "[INFO] The collection is marked as favorites", False)
 
-    def get_list_favorites(self, id_user):
-        message = self.exec_query(f"""select id, name  from {schema_name}.collections where (id_user={id_user} and favorites=true)""",
-                                      "[INFO] Favorites list were received", True)
-        if len(message) == 0:
-            return ("Нет избранных коллекций")
-        else:
-            return message
-
     def delete_file_by_path(self, path:str):
         if os.path.exists(path):
             os.remove(path)
