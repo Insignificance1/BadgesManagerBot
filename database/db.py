@@ -5,6 +5,7 @@ import datetime
 
 from database.config import host, user, password, db_name, schema_name
 
+
 class DataBase:
     def __init__(self):
         self.connection = 0
@@ -111,11 +112,9 @@ class DataBase:
         else:
             return message
 
-
     def get_null_badges(self, id_collection):
         return self.exec_query(f"""select id, name from {schema_name}.images where id_collection={id_collection} and count=0""",
                                    "[INFO] Collect list null badges", True)
-
 
     # Получение списка всех избранных (или неизбранных) коллекций пользователя
     def get_list_favorites(self, id_user, is_favorites=True):
