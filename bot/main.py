@@ -38,13 +38,14 @@ db = DataBase()
 
 # Состояния FSM
 class States(StatesGroup):
-    waiting_for_zip = State()  # Состояние ожидания ZIP-файла
-    waiting_for_photo = State()  # Ожидание фото для разметки
-    choose_function_photo = State()  # Ожидание выбора функции обработки фото
-    align_function_photo = State()  # Ожидание выравнивание значков
-    change_collection_name = State()  # Ожидание ввода названия коллекции
-    add_new_collection_zip_name = State()  # Ожидание создание новой колекции из ZIP файла с именем
-    add_badge = State()  # Ожидание фото значка в модуле редактирования
+    waiting_for_zip_create = State()            # Состояние ожидания ZIP-файла при создании коллекции
+    waiting_for_zip_add = State()               # Состояние ожидания ZIP-файла при пополнении коллекции
+    waiting_for_photo = State()                 # Ожидание фото для разметки
+    choose_function_photo = State()             # Ожидание выбора функции обработки фото
+    align_function_photo = State()              # Ожидание выравнивание значков
+    change_collection_name = State()            # Ожидание ввода названия коллекции
+    add_new_collection_zip_name = State()       # Ожидание создание новой колекции из ZIP файла с именем
+    add_badge = State()                         # Ожидание фото значка в модуле редактирования
     collections = State()
     favorites = State()
     state_list = State()                        # Состояние считывания сообщения с номером коллекции
@@ -407,25 +408,78 @@ async def edit_favorite_handler(callback_query: CallbackQuery) -> None:
                                             reply_markup=keyboard.favorite_collections_menu)
     loading_task.cancel()
 
-# Форматирование списка коллекций
-def format_collection_list(collections, prefix):
-    new_keyboard = []
-    if collections not in ['Нет коллекций', 'Нет избранных коллекций']:
-        for i, (_, name) in enumerate(collections, start=1):
-            button_text = f"{i}. {name}"
-            callback_data = f"{prefix}{i}"
-            new_keyboard.append([InlineKeyboardButton(text=button_text, callback_data=callback_data)])
-    new_keyboard.append([InlineKeyboardButton(text="Назад", callback_data="main_menu")])
-    return InlineKeyboardMarkup(inline_keyboard=new_keyboard)
+# Выбор коллекции для пополнения
+@dp.message(F.text == "Пополнить коллекцию")
+async def add_handler(message: Message) -> None:
+    user_id = message.from_user.id
+    await message.reply(
+        "*Выберите коллекцию для её пополнения*\n", reply_markup=format_collection_list(
+            db.get_list_collection(user_id), 'add_badges_'), parse_mode='Markdown')
 
-# Ожидание архива с изображениями
+# Ожидание архива с изображениями для пополнения коллекции
+@dp.callback_query(lambda c: c.data.startswith("add_badges_"))
+async def add_badges_handler(callback_query: CallbackQuery, state: FSMContext) -> None:
+    collection_id, name = await get_collection_id_and_name(callback_query, type_id=1)
+    await callback_query.message.answer("Отправьте ZIP-файл с изображениями.", reply_markup=keyboard.back_menu)
+    await state.update_data(collection_id=collection_id, collection_name=name)
+    await state.set_state(States.waiting_for_zip_add)
+    await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+
+# Пополнение коллекции
+@dp.message(F.document, States.waiting_for_zip_add)
+async def get_zip_handler(message: Message, state: FSMContext) -> None:
+    await message.reply("Файл получен.", reply_markup=keyboard.back_menu)
+    # Запускаем параллельную задачу для режима ожидания
+    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
+    loop = asyncio.get_running_loop()
+    data = await state.get_data()
+    collection_id = data.get('collection_id')
+    collection_name = data.get('collection_name')
+    zip_file_id = message.document.file_id
+
+    try:
+        # Загружаем архив
+        zip_file = await bot.get_file(zip_file_id)
+        zip_path = f'../Photo/ZIP/{zip_file.file_path}'
+        await bot.download_file(zip_file.file_path, zip_path)
+
+        zip_ref = zipfile.ZipFile(zip_path, 'r')
+        images = []
+        # Добавляем изображения в папку
+        for idx, file in enumerate(zip_ref.namelist()):
+            filename, file_extension = os.path.splitext(file)
+            if file_extension == '.png' or file_extension == '.jpeg':
+                new_filename = f"{zip_file_id}_{idx}{file_extension}"
+                zip_ref.extract(file, '../Photo/noBg/')
+                os.rename(f"../Photo/noBg/{file}", f"../Photo/noBg/{new_filename}")
+                images.append(new_filename)
+
+        zip_ref.close()
+        os.remove(zip_path)
+
+        # Добавляем изображения в БД
+        for img_name in images:
+            img_path = f"../Photo/noBg/{img_name}"
+            await loop.run_in_executor(executor, db.insert_image, message.from_user.id, img_path, collection_id)
+
+        await message.reply(f"Коллекция '{collection_name}' успешно пополнена.", reply_markup=keyboard.main_menu)
+        # Завершаем режим ожидания
+        loading_task.cancel()
+    except Exception as e:
+        await message.reply(f"Ошибка при создании коллекции: {e}", reply_markup=keyboard.main_menu)
+        loading_task.cancel()
+
+    await state.clear()
+
+
+# Ожидание архива с изображениями при создании коллекции
 @dp.message(F.text == "Добавить коллекцию")
 async def add_handler(message: Message, state: FSMContext) -> None:
     await message.reply("Отправьте ZIP-файл с изображениями.", reply_markup=keyboard.back_menu)
-    await state.set_state(States.waiting_for_zip)
+    await state.set_state(States.waiting_for_zip_create)
 
 # Ожидание ввода названия новой коллекции
-@dp.message(F.document, States.waiting_for_zip)
+@dp.message(F.document, States.waiting_for_zip_create)
 async def get_zip_handler(message: Message, state: FSMContext) -> None:
     await state.update_data(zip_file_id=message.document.file_id)
     await message.reply("Файл получен. Введите название новой коллекции.", reply_markup=keyboard.back_menu)
@@ -561,6 +615,17 @@ async def remove_badge_handler(message: Message, state: FSMContext) -> None:
     await message.reply("Пожалуйста, отправьте фото со значком, который вы хотите добавить в коллекцию.",
                         reply_markup=keyboard.back_menu)
     await state.set_state(States.add_badge)
+
+# Форматирование списка коллекций в InlineKeyboard
+def format_collection_list(collections, prefix):
+    new_keyboard = []
+    if collections not in ['Нет коллекций', 'Нет избранных коллекций']:
+        for i, (_, name) in enumerate(collections, start=1):
+            button_text = f"{i}. {name}"
+            callback_data = f"{prefix}{i}"
+            new_keyboard.append([InlineKeyboardButton(text=button_text, callback_data=callback_data)])
+    new_keyboard.append([InlineKeyboardButton(text="Назад", callback_data="main_menu")])
+    return InlineKeyboardMarkup(inline_keyboard=new_keyboard)
 
 # Получение id и названия коллекции
 async def get_collection_id_and_name(callback_query, loop=None, type_id=1):

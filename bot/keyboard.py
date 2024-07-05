@@ -79,7 +79,7 @@ all_collections_menu = ReplyKeyboardMarkup(
             KeyboardButton(text="Посмотреть коллекцию")
         ],
         [
-            KeyboardButton(text="Добавить значок в коллекцию"),
+            KeyboardButton(text="Пополнить коллекцию"),
             KeyboardButton(text="Вывести недостающие значки")
         ],
         [
