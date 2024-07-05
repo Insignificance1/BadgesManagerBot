@@ -365,7 +365,7 @@ async def send_pdf(callback_query: CallbackQuery):
     try:
         await bot.delete_message(chat_id=callback_query.message.chat.id,
                                  message_id=callback_query.message.message_id)
-        await bot.send_document(chat_id=callback_query.message.chat.id, document=pdf)
+        await bot.send_document(chat_id=callback_query.message.chat.id, document=pdf, reply_markup=keyboard.back_menu)
         os.remove(pdf_path)
     except TelegramBadRequest:
         raise Exception("Что-то пошло не так. Вероятно, кнопка была нажата несколько раз.")
