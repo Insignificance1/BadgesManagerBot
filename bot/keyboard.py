@@ -187,5 +187,5 @@ def create_edit_keyboard(idx, num_objects):
         ],
     ])
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons, row_width=1)
     return keyboard

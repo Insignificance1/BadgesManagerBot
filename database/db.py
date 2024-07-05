@@ -138,11 +138,12 @@ class DataBase:
             f"""update {schema_name}.collections set favorites = {is_favorites} where id = {id_collection}""",
             "[INFO] The collection is marked as favorites", False)
 
-    def delete_file_by_path(self, path:str):
+    # Удаление файла по указанному пути
+    def delete_file_by_path(self, path: str):
         if os.path.exists(path):
             os.remove(path)
 
-
+    # Удаление коллекции пользователя
     def delete_collection(self, id_user, collection_id):
         # Проверка существования коллекции
         if self.contains_collection(id_user, collection_id):
@@ -164,18 +165,12 @@ class DataBase:
         else:
             raise Exception("[Ошибка] Коллекция не существует")
 
-    # Проверка наличия коллекции с выбранными именем у пользователя
+    # Проверка наличия коллекции с выбранным id у пользователя
     def contains_collection(self, id_user, collection_id):
         return len(self.exec_query(f"select id from {schema_name}.collections where id={collection_id} "
                                    f"and id_user={id_user}", "[INFO] Return collection"))
 
-    #по id коллекции заменяет название
-    def update_name_collection(self, new_name, id_collection):
-        return self.exec_query(
-            f"""UPDATE {schema_name}.collections SET name='{new_name}' where id={id_collection}""",
-            f"[INFO] Update name collection={new_name} with id={id_collection}",True)
-
-
+    # Проверка наличия коллекции с выбранными именем у пользователя
     def contains_collection_name(self, id_user, name):
         result = self.exec_query(f"select name from {schema_name}.collections where id_user={id_user} and name='{name}'",
                                      "[INFO] Checking for existence of collection name", True)
