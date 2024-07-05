@@ -1,3 +1,5 @@
+import os
+
 from ultralytics import YOLO
 import numpy as np
 import cv2
@@ -59,5 +61,16 @@ class Segmenter:
             output_image_path = f"../Photo/noBg/{photo_id}_{idx}.png"
             output_image.save(output_image_path)
 
+            # self.clear_cut_folder()
+
         return num_objects
 
+    def clear_cut_folder(self):
+        cut_folder_path = "../Photo/cut"
+        for filename in os.listdir(cut_folder_path):
+            file_path = os.path.join(cut_folder_path, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)  # Удаление файла
+            except Exception as e:
+                print(f"Не удалось удалить {file_path}. Причина: {e}")
