@@ -110,6 +110,11 @@ class Db:
             return message
 
 
+    def get_null_badges(self, id_collection):
+        return self.exec_query_all(f"""select id, name from {schema_name}.images where id_collection={id_collection} and count=0""",
+                                   "[INFO] Collect list null badges")
+
+
     def get_all_images(self, id_collection):
         return self.exec_query_all(f"""select path from {schema_name}.images where (id_collection={id_collection})""",
                                  "[INFO] Collection list were received")
