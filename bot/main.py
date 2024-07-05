@@ -46,8 +46,9 @@ class States(StatesGroup):
     change_collection_name = State()            # Ожидание ввода названия коллекции
     add_new_collection_zip_name = State()       # Ожидание создание новой колекции из ZIP файла с именем
     add_badge = State()                         # Ожидание фото значка в модуле редактирования
-    collections = State()
-    favorites = State()
+    collections = State()                       # Состояние для выгрузки PDF файла из всего списка
+    favorites = State()                         # Состояние для выгрузки PDF файла из избранного
+    state_null_badges = State()                 # Состояние для выгрузки PDF файла с 0 значками
     state_list = State()                        # Состояние считывания сообщения с номером коллекции
     state_favorite_list = State()               # Состояние считывания сообщения с номером избранной коллекции
     state_add_favorite_list = State()           # Состояние считывания сообщения с номером коллекции для добавления в избранное
@@ -265,6 +266,12 @@ async def all_list_handler(message: Message, state: FSMContext) -> None:
                          reply_markup=keyboard.all_collections_menu)
     await state.set_state(States.collections)
 
+#Выводит недостающие значки
+@dp.message(F.text == "Вывести недостающие значки")
+async def null_badges_list_handler(message: Message, state: FSMContext) -> None:
+    await message.answer('*Выберете коллекцию*', reply_markup=keyboard.all_collections_menu)
+
+
 # Выбор действия над избранными коллекциями
 @dp.message(F.text == "Избранное")
 async def favourites_list_handler(message: Message, state: FSMContext) -> None:
@@ -289,6 +296,15 @@ async def pdf_collections_handler(message: Message) -> None:
                          reply_markup=await format_collection_list(db.get_list_favorites(user_id), 'pdf_favorite_'),
                          parse_mode='Markdown')
     await remove_keyboard(message)
+
+
+# Выбор коллекции для выгрузки в PDF-файл нулевых значков
+@dp.message(F.text == "Выгрузить в PDF", States.state_null_badges)
+async def pdf_collections_handler(message: Message) -> None:
+    user_id = message.from_user.id
+    await message.answer("*Выберите коллекцию для выгрузки в PDF*\n",
+                         reply_markup=format_collection_list(db.get_list_collection(user_id), 'pdf_collection_'),
+                         parse_mode='Markdown')
 
 # Выгрузка в PDF-файл выбранной коллекции
 @dp.callback_query(lambda c: c.data.startswith("pdf_collection_") or c.data.startswith("pdf_favorite_"))
@@ -615,8 +631,8 @@ async def instruction_handler(message: Message) -> None:
         "*Ограничения:*\n"
         "1. Один пользователь может иметь не более 100 коллекций.\n"
         "2. Одна коллекция может содержать не более 200 фотографий.\n"
-        "3. Название коллекции должно содержать от 3 до 100 символов.\n"
-        "4. Название значка должно содержать от 3 до 70 символов."
+        "3. Название коллекции должно содержать от 3 до 55 символов.\n"
+        "4. Название значка должно содержать от 3 до 15 символов."
     )
     await message.answer(instruction, reply_markup=keyboard.instruction_menu, parse_mode='Markdown')
 
