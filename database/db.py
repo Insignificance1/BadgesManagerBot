@@ -1,10 +1,25 @@
+import os
+
 import psycopg2 as ps
 import datetime
+
 from database.config import host, user, password, db_name, schema_name
 
 class DataBase:
     def __init__(self):
         self.connection = 0
+
+    def connect(self):
+        try:
+            self.connection = ps.connect(
+                host=host,
+                user=user,
+                password=password,
+                database=db_name
+            )
+            self.connection.autocommit = True
+        except Exception as e:
+            print(f"[INFO] Error while connecting to PostgreSQL: {e}")
 
     # Выполнение SQL-запроса
     def exec_query(self, update, info_message, is_all_strs=False):
@@ -96,7 +111,13 @@ class DataBase:
         else:
             return message
 
-    # Получения списка всех избранных (или неизбранных) коллекций пользователя
+
+    def get_null_badges(self, id_collection):
+        return self.exec_query(f"""select id, name from {schema_name}.images where id_collection={id_collection} and count=0""",
+                                   "[INFO] Collect list null badges", True)
+
+
+    # Получение списка всех избранных (или неизбранных) коллекций пользователя
     def get_list_favorites(self, id_user, is_favorites=True):
         message = self.exec_query(f"select id, name from {schema_name}.collections where id_user={id_user} "
                                   f"and favorites={is_favorites}",
@@ -117,7 +138,52 @@ class DataBase:
             f"""update {schema_name}.collections set favorites = {is_favorites} where id = {id_collection}""",
             "[INFO] The collection is marked as favorites", False)
 
+    def get_list_favorites(self, id_user):
+        message = self.exec_query(f"""select id, name  from {schema_name}.collections where (id_user={id_user} and favorites=true)""",
+                                      "[INFO] Favorites list were received", True)
+        if len(message) == 0:
+            return ("Нет избранных коллекций")
+        else:
+            return message
+
+    def delete_file_by_path(self, path:str):
+        if os.path.exists(path):
+            os.remove(path)
+
+
+    def delete_collection(self, id_user, collection_id):
+        # Проверка существования коллекции
+        if self.contains_collection(id_user, collection_id):
+            # Получение списка изображений, связанных с коллекцией
+            images = self.exec_query(f"""select path from {schema_name}.images where id_collection = {collection_id}""",
+                                     "[INFO] Images were retrieved", True)
+            # Удаление файлов изображений
+            for image in images:
+                path = image[0]
+                self.delete_file_by_path(str(path))
+            # Удаление изображений из таблицы images
+            self.exec_query(f"""delete from {schema_name}.images where id_collection = {collection_id}""",
+                            "[INFO] Images were deleted", True)
+            # Удаление коллекции из таблицы collections
+            self.exec_query(f"""delete from {schema_name}.collections where id = {collection_id}""",
+                            "[INFO] Collection was deleted", True)
+
+            return "Коллекция успешно удалена"
+        else:
+            raise Exception("[Ошибка] Коллекция не существует")
+
     # Проверка наличия коллекции с выбранными именем у пользователя
+    def contains_collection(self, id_user, collection_id):
+        return len(self.exec_query(f"""select id from {schema_name}.collections where id={collection_id} and id_user={id_user} """, "[INFO]Return collection"))
+
+
+    #по id коллекции заменяет название
+    def update_name_collection(self, new_name, id_collection):
+        return self.exec_query(
+            f"""UPDATE {schema_name}.collections SET name='{new_name}' where id={id_collection}""",
+            f"[INFO] Update name collection={new_name} with id={id_collection}",True)
+
+
     def contains_collection_name(self, id_user, name):
         result = self.exec_query(f"select name from {schema_name}.collections where id_user={id_user} and name='{name}'",
                                      "[INFO] Checking for existence of collection name", True)
@@ -128,3 +194,20 @@ class DataBase:
         result = self.exec_query(f"select count(*) from {schema_name}.collections where id_user={id_user}",
                                      "[INFO] Counting collections for user", True)
         return len(result)
+
+
+    #(get_all_images(4))
+    #def del_collection(id_user, id_collection):
+    #    if (id_collection==get_list_collection(id_user)):
+
+
+    #print(get_list_collection(111111111))
+    #add_user(111111111)
+
+    # add_collection(1216034152, 'abeb')
+
+    # Пример использования функции
+    #n = 44
+    # for i in range(0, n, +1):
+        # insert_image(id_user=1216034152, path=f'../Photo/noBg/AgACAgIAAxkBAAIL_WaEVVgochVy2L0z1LLPzjAtAprtAAKe3zEbU5EgSPIO6FYarG0EAQADAgADeQADNQQ_{i}.png', collection_id=8)
+

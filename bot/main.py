@@ -16,6 +16,7 @@ from numpy.compat import long
 
 import config
 import keyboard
+
 from database.db import DataBase
 from model.segment import Segmenter
 from model.convert import Converter
@@ -46,13 +47,14 @@ class States(StatesGroup):
     add_badge = State()  # Ожидание фото значка в модуле редактирования
     collections = State()
     favorites = State()
-    state_list = State()  # Состояние считывания сообщения с номером коллекции
-    state_favorite_list = State()  # Состояние считывания сообщения с номером избранной коллекции
-    state_add_favorite_list = State()  # Состояние считывания сообщения с номером коллекции для добавления в избранное
-    state_del_favorite_list = State()  # Состояние считывания сообщения с номером коллекции для удаления из избранного
-    change_favorite_collection_name = State()  # Состояние ожидания ввода названия избранной коллекции
-    waiting_for_new_name = State()  # Ожидает задания имени
-    state_back = State()  # Ждёт кнопки назад
+    state_list = State()                        # Состояние считывания сообщения с номером коллекции
+    state_favorite_list = State()               # Состояние считывания сообщения с номером избранной коллекции
+    state_add_favorite_list = State()           # Состояние считывания сообщения с номером коллекции для добавления в избранное
+    state_del_favorite_list = State()           # Состояние считывания сообщения с номером коллекции для удаления из избранного
+    change_favorite_collection_name = State()   # Состояние ожидания ввода названия избранной коллекции
+    waiting_for_new_name = State()              # Ожидает задания имени
+    state_back = State()                        # Ждёт кнопки назад
+    state_del_collection = State()              # Состояние ожидания удаления коллекции
     all_collection_create = State()
     align_state = State()
     waiting_for_name_collection = State()
@@ -112,6 +114,7 @@ async def cut_handler(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     image_path = data.get('image_path')
     photo_id = data.get('photo_id')
+    await state.set_state(States.align_function_photo)
     # Запускаем параллельную задачу для режима ожидания
     loading_task = asyncio.create_task(send_loading_message(message.chat.id))
     loop = asyncio.get_running_loop()
@@ -125,7 +128,6 @@ async def cut_handler(message: Message, state: FSMContext) -> None:
         photo_cropped = FSInputFile(cropped_img_path)
         await bot.send_photo(chat_id=message.chat.id, photo=photo_cropped, reply_markup=keyboard.align_menu)
     await state.update_data(image_path=image_path, photo_id=photo_id, num_objects=num_objects)
-    await state.set_state(States.align_function_photo)
 
 
 # Подготовка к выравниванию изображений
@@ -483,8 +485,40 @@ async def create_collection_handler(message: Message, state: FSMContext) -> None
 
 
 @dp.message(F.text == "Удалить коллекцию")
-async def remove_handler(message: Message) -> None:
-    await message.reply("Секция 'Удалить' пока в разработке.", reply_markup=keyboard.collections_menu)
+async def delete_collection_handler(message: Message, state: FSMContext) -> None:
+    loop = asyncio.get_running_loop()
+    user_id = message.from_user.id
+    collections = await loop.run_in_executor(executor, db.get_list_collection, user_id)
+    if len(collections) == 0:
+        await message.reply("У вас нет коллекций.", reply_markup=keyboard.collections_menu)
+    else:
+        collection_list = "Выберите коллекцию для удаления:\n"
+        for i, collection in enumerate(collections, start=1):
+            collection_list += f"{i}. {collection[1]}\n"
+        await message.reply(collection_list, reply_markup=keyboard.back_menu)
+        await state.set_state(States.state_del_collection)
+
+
+@dp.message(F.text, States.state_del_collection)
+async def delete_collection_number_handler(message: Message, state: FSMContext) -> None:
+    loop = asyncio.get_running_loop()
+    data = await state.get_data()
+    user_id = message.from_user.id
+    try:
+        collection_number = int(message.text)
+    except ValueError:
+        await message.reply("Неверный формат номера коллекции. Попробуйте ещё раз.", reply_markup=keyboard.back_menu)
+        return
+
+    collections = await loop.run_in_executor(executor, db.get_list_collection, user_id)
+    if 0 < collection_number <= len(collections):
+        collection_id = collections[collection_number - 1][0]
+        await loop.run_in_executor(executor, db.delete_collection,user_id, collection_id)
+        await message.reply("Коллекция успешно удалена.", reply_markup=keyboard.collections_menu)
+    else:
+        await message.reply("Неверный номер коллекции. Попробуйте ещё раз.", reply_markup=keyboard.back_menu)
+
+    await state.clear()
 
 
 @dp.message(F.text == "Редактировать")
