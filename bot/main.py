@@ -298,7 +298,7 @@ async def send_pdf(callback_query: CallbackQuery):
     loading_task = asyncio.create_task(send_loading_message(callback_query.message.chat.id))
     loop = asyncio.get_running_loop()
     # Получаем id и название коллекции
-    type_id = 2 if callback_query.data.startswith("name_favorite_") else 1
+    type_id = 2 if callback_query.data.startswith("pdf_favorite_") else 1
     collection_id, name = await get_collection_id_and_name(callback_query, type_id=type_id)
     # Запрашиваем список путей всех изображений
     images_list = await loop.run_in_executor(executor, db.get_all_images, collection_id)
@@ -431,42 +431,22 @@ async def get_zip_handler(message: Message, state: FSMContext) -> None:
     await message.reply("Файл получен.", reply_markup=keyboard.back_menu)
     # Запускаем параллельную задачу для режима ожидания
     loading_task = asyncio.create_task(send_loading_message(message.chat.id))
-    loop = asyncio.get_running_loop()
     data = await state.get_data()
     collection_id = data.get('collection_id')
     collection_name = data.get('collection_name')
     zip_file_id = message.document.file_id
 
     try:
-        # Загружаем архив
-        zip_file = await bot.get_file(zip_file_id)
-        zip_path = f'../Photo/ZIP/{zip_file.file_path}'
-        await bot.download_file(zip_file.file_path, zip_path)
-
-        zip_ref = zipfile.ZipFile(zip_path, 'r')
-        images = []
-        # Добавляем изображения в папку
-        for idx, file in enumerate(zip_ref.namelist()):
-            filename, file_extension = os.path.splitext(file)
-            if file_extension == '.png' or file_extension == '.jpeg':
-                new_filename = f"{zip_file_id}_{idx}{file_extension}"
-                zip_ref.extract(file, '../Photo/noBg/')
-                os.rename(f"../Photo/noBg/{file}", f"../Photo/noBg/{new_filename}")
-                images.append(new_filename)
-
-        zip_ref.close()
-        os.remove(zip_path)
-
-        # Добавляем изображения в БД
-        for img_name in images:
-            img_path = f"../Photo/noBg/{img_name}"
-            await loop.run_in_executor(executor, db.insert_image, message.from_user.id, img_path, collection_id)
-
-        await message.reply(f"Коллекция '{collection_name}' успешно пополнена.", reply_markup=keyboard.main_menu)
+        await process_zip_file(
+            zip_file_id=zip_file_id,
+            collection_id=collection_id,
+            user_id=message.from_user.id,
+            reply_func=lambda: message.reply(f"Коллекция '{collection_name}' успешно пополнена.", reply_markup=keyboard.main_menu)
+        )
         # Завершаем режим ожидания
         loading_task.cancel()
     except Exception as e:
-        await message.reply(f"Ошибка при создании коллекции: {e}", reply_markup=keyboard.main_menu)
+        await message.reply(f"Ошибка при пополнении коллекции: {e}", reply_markup=keyboard.main_menu)
         loading_task.cancel()
 
     await state.clear()
@@ -541,6 +521,36 @@ async def create_collection_handler(message: Message, state: FSMContext) -> None
         loading_task.cancel()
 
     await state.clear()
+
+# Обработка архива
+async def process_zip_file(zip_file_id, collection_id, user_id, reply_func):
+    loop = asyncio.get_running_loop()
+
+    # Загружаем архив
+    zip_file = await bot.get_file(zip_file_id)
+    zip_path = f'../Photo/ZIP/{zip_file.file_path}'
+    await bot.download_file(zip_file.file_path, zip_path)
+
+    zip_ref = zipfile.ZipFile(zip_path, 'r')
+    images = []
+    # Добавляем изображения в папку
+    for idx, file in enumerate(zip_ref.namelist()):
+        filename, file_extension = os.path.splitext(file)
+        if file_extension == '.png' or file_extension == '.jpeg':
+            new_filename = f"{zip_file_id}_{idx}{file_extension}"
+            zip_ref.extract(file, '../Photo/noBg/')
+            os.rename(f"../Photo/noBg/{file}", f"../Photo/noBg/{new_filename}")
+            images.append(new_filename)
+
+    zip_ref.close()
+    os.remove(zip_path)
+
+    # Добавляем изображения в БД
+    for img_name in images:
+        img_path = f"../Photo/noBg/{img_name}"
+        await loop.run_in_executor(executor, db.insert_image, user_id, img_path, collection_id)
+
+    await reply_func()
 
 # Выбор коллекции для удаления
 @dp.message(F.text == "Удалить коллекцию")

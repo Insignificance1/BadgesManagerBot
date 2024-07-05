@@ -186,20 +186,3 @@ class DataBase:
         result = self.exec_query(f"select count(*) from {schema_name}.collections where id_user={id_user}",
                                      "[INFO] Counting collections for user", True)
         return len(result)
-
-
-    #(get_all_images(4))
-    #def del_collection(id_user, id_collection):
-    #    if (id_collection==get_list_collection(id_user)):
-
-
-    #print(get_list_collection(111111111))
-    #add_user(111111111)
-
-    # add_collection(1216034152, 'abeb')
-
-    # Пример использования функции
-    #n = 44
-    # for i in range(0, n, +1):
-        # insert_image(id_user=1216034152, path=f'../Photo/noBg/AgACAgIAAxkBAAIL_WaEVVgochVy2L0z1LLPzjAtAprtAAKe3zEbU5EgSPIO6FYarG0EAQADAgADeQADNQQ_{i}.png', collection_id=8)
-
