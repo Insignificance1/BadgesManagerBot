@@ -274,7 +274,9 @@ async def all_list_handler(message: Message, state: FSMContext) -> None:
 # Вывод недостающих значки
 @dp.message(F.text == "Вывести недостающие значки")
 async def null_badges_list_handler(message: Message, state: FSMContext) -> None:
-    await message.answer('*Выберете коллекцию*', reply_markup=keyboard.all_collections_menu)
+    await state.set_state(States.state_null_badges)
+    await pdf_collections_handler(message)
+
 
 
 # Выбор действия над избранными коллекциями
@@ -308,20 +310,29 @@ async def pdf_collections_handler(message: Message) -> None:
 async def pdf_collections_handler(message: Message) -> None:
     user_id = message.from_user.id
     await message.answer("*Выберите коллекцию для выгрузки в PDF*\n",
-                         reply_markup=format_collection_list(db.get_list_collection(user_id), 'pdf_collection_'),
+                         reply_markup=format_collection_list(db.get_list_collection(user_id), 'pdf_null_'),
                          parse_mode='Markdown')
 
 # Выгрузка в PDF-файл выбранной коллекции
-@dp.callback_query(lambda c: c.data.startswith("pdf_collection_") or c.data.startswith("pdf_favorite_"))
+@dp.callback_query(lambda c: c.data.startswith("pdf_collection_") or c.data.startswith("pdf_favorite_") or c.data.startswith("pdf_null_"))
 async def send_pdf(callback_query: CallbackQuery):
     # Запускаем параллельную задачу для режима ожидания
     loading_task = asyncio.create_task(send_loading_message(callback_query.message.chat.id))
     loop = asyncio.get_running_loop()
     # Получаем id и название коллекции
-    type_id = 2 if callback_query.data.startswith("pdf_favorite_") else 1
+    type_id = 3
+    if callback_query.data.startswith("pdf_null_"):
+        type_id = 3
+        null_or_all_images = db.get_null_badges
+    else:
+        null_or_all_images = db.get_all_images
+        if callback_query.data.startswith("pdf_favorite_"):
+            type_id = 2
+        else:
+            type_id = 1
     collection_id, name = await get_collection_id_and_name(callback_query, type_id=type_id)
-    # Запрашиваем список путей всех изображений
-    images_list = await loop.run_in_executor(executor, db.get_all_images, collection_id)
+    # Запрашиваем список путей всех изображений которых 0 или просто всех
+    images_list = await loop.run_in_executor(executor, null_or_all_images, collection_id)
     converter = Converter()
     # Конвертируем изображения в один PDF-файл
     pdf_path = await loop.run_in_executor(executor, converter.convert_to_pdf, name, collection_id, images_list)
@@ -619,6 +630,8 @@ async def get_collection_id_and_name(callback_query, loop=None, type_id=1):
         db_message = await loop.run_in_executor(executor, db.get_list_collection, user_id)
     elif type_id == 2:
         db_message = await loop.run_in_executor(executor, db.get_list_favorites, user_id)
+    elif type_id == 3:
+        db_message = await loop.run_in_executor(executor, db.get_list_collection, user_id)
     else:
         db_message = await loop.run_in_executor(executor, db.get_list_favorites, user_id, False)
     collection_id, name = db_message[int(callback_query.data.split("_")[2]) - 1]

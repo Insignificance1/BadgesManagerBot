@@ -113,7 +113,7 @@ class DataBase:
             return message
 
     def get_null_badges(self, id_collection):
-        return self.exec_query(f"""select id, name from {schema_name}.images where id_collection={id_collection} and count=0""",
+        return self.exec_query(f"""select path from {schema_name}.images where id_collection={id_collection} and count=0""",
                                    "[INFO] Collect list null badges", True)
 
     # Получение списка всех избранных (или неизбранных) коллекций пользователя
