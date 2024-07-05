@@ -16,7 +16,8 @@ from numpy.compat import long
 
 import config
 import keyboard
-from database.db import Db
+
+from database.db import DataBase
 from model.segment import Segmenter
 from model.convert import Converter
 from model.segment import rotate_image
@@ -32,20 +33,22 @@ bot = Bot(token=config.TOKEN)
 dp = Dispatcher()
 
 segmenter = Segmenter(model_path='../v3-965photo-100ep.pt')
-db = Db()
+db = DataBase()
 
 
 # Состояния FSM
 class States(StatesGroup):
-    waiting_for_zip = State()                   # Состояние ожидания ZIP-файла
+    waiting_for_zip_create = State()            # Состояние ожидания ZIP-файла при создании коллекции
+    waiting_for_zip_add = State()               # Состояние ожидания ZIP-файла при пополнении коллекции
     waiting_for_photo = State()                 # Ожидание фото для разметки
     choose_function_photo = State()             # Ожидание выбора функции обработки фото
     align_function_photo = State()              # Ожидание выравнивание значков
     change_collection_name = State()            # Ожидание ввода названия коллекции
     add_new_collection_zip_name = State()       # Ожидание создание новой колекции из ZIP файла с именем
     add_badge = State()                         # Ожидание фото значка в модуле редактирования
-    collections = State()
-    favorites = State()
+    collections = State()                       # Состояние для выгрузки PDF файла из всего списка
+    favorites = State()                         # Состояние для выгрузки PDF файла из избранного
+    state_null_badges = State()                 # Состояние для выгрузки PDF файла с 0 значками
     state_list = State()                        # Состояние считывания сообщения с номером коллекции
     state_favorite_list = State()               # Состояние считывания сообщения с номером избранной коллекции
     state_add_favorite_list = State()           # Состояние считывания сообщения с номером коллекции для добавления в избранное
@@ -53,8 +56,11 @@ class States(StatesGroup):
     change_favorite_collection_name = State()   # Состояние ожидания ввода названия избранной коллекции
     waiting_for_new_name = State()              # Ожидает задания имени
     state_back = State()                        # Ждёт кнопки назад
+    state_del_collection = State()              # Состояние ожидания удаления коллекции
     all_collection_create = State()
     align_state = State()
+    waiting_for_name_collection = State()
+    waiting_for_name_favorite = State()
 
 
 # Знакомство с пользователем
@@ -130,7 +136,7 @@ async def cut_handler(message: Message, state: FSMContext) -> None:
     await state.update_data(image_path=image_path, photo_id=photo_id, num_objects=num_objects)
 
 
-# Функция выравнивания изображений
+# Подготовка к выравниванию изображений
 @dp.message(F.text == "Выровнять", States.align_function_photo)
 async def edit_handler(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
@@ -138,18 +144,17 @@ async def edit_handler(message: Message, state: FSMContext) -> None:
     num_objects = data.get('num_objects')
     idx = 0
     aligned_img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
+    # Создаём inline клавиатуры
     edit_keyboard = create_edit_keyboard(idx, num_objects)
     photo_aligned = FSInputFile(aligned_img_path)
 
-    # Костыль, чтобы удалять клавиатуру
-    await message.answer("ㅤ", reply_markup=ReplyKeyboardRemove())
-    await bot.delete_message(message.chat.id, message.message_id + 1)
-
-    await bot.send_photo(chat_id=message.chat.id, photo=photo_aligned, reply_markup=edit_keyboard, caption="ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ")
+    await remove_keyboard(message)
+    await bot.send_photo(chat_id=message.chat.id, photo=photo_aligned, reply_markup=edit_keyboard,
+                         caption='ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ')
     await state.update_data(edit_idx=idx)
 
 
-# Inline клавиатура для выравнивания изображений
+# Выравнивание изображений
 @dp.callback_query(lambda c: c.data.startswith('edit_'))
 async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -163,23 +168,7 @@ async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext
     if action == 'left':
         edit_idx = max(edit_idx - 1, 0)
     elif action == 'right':
-        edit_idx += 1  # увеличиваем idx для перехода к следующему изображению
-    elif action == '-1':
-        angle = -1
-    elif action == '+1':
-        angle = 1
-    elif action == '-10':
-        angle = -10
-    elif action == '+10':
-        angle = 10
-    elif action == '-45':
-        angle = -45
-    elif action == '+45':
-        angle = 45
-    elif action == '-90':
-        angle = -90
-    elif action == '+90':
-        angle = 90
+        edit_idx += 1  # Увеличиваем idx для перехода к следующему изображению
     elif action == 'continue':
         await bot.send_message(chat_id=callback_query.message.chat.id, text="Коллекция полная?",
                                reply_markup=keyboard.yes_no_menu)
@@ -190,6 +179,11 @@ async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext
                                reply_markup=keyboard.main_menu)
         await callback_query.answer()
         return
+    else:
+        try:
+            angle = int(action)
+        except ValueError:
+            raise ValueError("Обнаружено несуществующее действие")
 
     image_path = f"../Photo/noBg/{photo_id}_{edit_idx}.png"
     if angle != 0:
@@ -200,21 +194,18 @@ async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext
     await bot.edit_message_media(
         chat_id=callback_query.message.chat.id,
         message_id=callback_query.message.message_id,
-        media=types.InputMediaPhoto(media=photo_aligned),
-        reply_markup=edit_keyboard,
-    )
-    await bot.edit_message_caption(
-        chat_id=callback_query.message.chat.id,
-        message_id=callback_query.message.message_id,
-        caption="ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ",
+        media=types.InputMediaPhoto(media=photo_aligned,
+        caption='ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ'),
+        reply_markup=edit_keyboard
     )
 
     await state.update_data(edit_idx=edit_idx)
     await callback_query.answer()
 
 
+# Продолжение после получения значков после нарезки
 @dp.message(F.text == "Продолжить", States.align_function_photo)
-async def contin_handler(message: Message) -> None:
+async def continue_handler(message: Message) -> None:
     await message.answer("Коллекция полная?", reply_markup=keyboard.yes_no_menu)
 
 
@@ -227,12 +218,13 @@ async def yes_handler(message: Message, state: FSMContext) -> None:
 
 # Создание коллекции после нарезки
 @dp.message(F.text, States.all_collection_create)
-async def create_collection_handler(message: Message, state: FSMContext) -> None:
+async def create_after_yes_handler(message: Message, state: FSMContext) -> None:
+    # Запускаем параллельную задачу для режима ожидания
+    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
     data = await state.get_data()
     loop = asyncio.get_running_loop()
     try:
-        # Добавляем коллекцию с параллельным режимом ожидания
-        loading_task = asyncio.create_task(send_loading_message(message.chat.id))
+        # Добавляем коллекцию
         result = await loop.run_in_executor(executor, db.add_collection, message.from_user.id, message.text)
         reply, id_collection = result
         num_objects = data.get('num_objects')
@@ -248,6 +240,7 @@ async def create_collection_handler(message: Message, state: FSMContext) -> None
     except Exception as e:
         await message.reply(str(e), reply_markup=keyboard.main_menu)
         await yes_handler(message, state)
+        loading_task.cancel()
     await state.clear()
 
 
@@ -287,6 +280,12 @@ async def all_list_handler(message: Message, state: FSMContext) -> None:
     await state.set_state(States.collections)
 
 
+# Выводит недостающие значки
+@dp.message(F.text == "Вывести недостающие значки")
+async def null_badges_list_handler(message: Message, state: FSMContext) -> None:
+    await message.answer('*Выберете коллекцию*', reply_markup=keyboard.all_collections_menu)
+
+
 # Выбор действия над избранными коллекциями
 @dp.message(F.text == "Избранное")
 async def favourites_list_handler(message: Message, state: FSMContext) -> None:
@@ -300,16 +299,26 @@ async def favourites_list_handler(message: Message, state: FSMContext) -> None:
 async def pdf_collections_handler(message: Message) -> None:
     user_id = message.from_user.id
     await message.answer("*Выберите коллекцию для выгрузки в PDF*\n",
-                         reply_markup=format_collection_list(db.get_list_collection(user_id), 'pdf_collection_'),
+                         reply_markup=await format_collection_list(db.get_list_collection(user_id), 'pdf_collection_'),
                          parse_mode='Markdown')
-
+    await remove_keyboard(message)
 
 # Выбор избранной коллекции для выгрузки в PDF-файл
 @dp.message(F.text == "Выгрузить в PDF", States.favorites)
 async def pdf_collections_handler(message: Message) -> None:
     user_id = message.from_user.id
     await message.answer("*Выберите избранную коллекцию для выгрузки в PDF*\n",
-                         reply_markup=format_collection_list(db.get_list_favorites(user_id), 'pdf_favorite_'),
+                         reply_markup=await format_collection_list(db.get_list_favorites(user_id), 'pdf_favorite_'),
+                         parse_mode='Markdown')
+    await remove_keyboard(message)
+
+
+# Выбор коллекции для выгрузки в PDF-файл нулевых значков
+@dp.message(F.text == "Выгрузить в PDF", States.state_null_badges)
+async def pdf_collections_handler(message: Message) -> None:
+    user_id = message.from_user.id
+    await message.answer("*Выберите коллекцию для выгрузки в PDF*\n",
+                         reply_markup=format_collection_list(db.get_list_collection(user_id), 'pdf_collection_'),
                          parse_mode='Markdown')
 
 
@@ -320,18 +329,20 @@ async def send_pdf(callback_query: CallbackQuery):
     loading_task = asyncio.create_task(send_loading_message(callback_query.message.chat.id))
     loop = asyncio.get_running_loop()
     # Получаем id и название коллекции
-    collection_id, name = await get_collection_id_and_name(callback_query, 'pdf_collection_', loop)
+    type_id = 2 if callback_query.data.startswith("pdf_favorite_") else 1
+    collection_id, name = await get_collection_id_and_name(callback_query, type_id=type_id)
     # Запрашиваем список путей всех изображений
     images_list = await loop.run_in_executor(executor, db.get_all_images, collection_id)
     converter = Converter()
     # Конвертируем изображения в один PDF-файл
-    pdf_path = await loop.run_in_executor(executor, converter.convert_to_pdf_base, name, collection_id, images_list)
+    pdf_path = await loop.run_in_executor(executor, converter.convert_to_pdf, name, collection_id, images_list)
     # Отправляем файл пользователю
     pdf = FSInputFile(pdf_path)
     loading_task.cancel()
     try:
         await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
         await bot.send_document(chat_id=callback_query.message.chat.id, document=pdf)
+        os.remove(pdf_path)
     except TelegramBadRequest:
         raise Exception("Что-то пошло не так. Вероятно, кнопка была нажата несколько раз.")
 
@@ -341,8 +352,9 @@ async def send_pdf(callback_query: CallbackQuery):
 async def send_name_handler(message: Message) -> None:
     user_id = message.from_user.id
     await message.answer("*Выберите коллекцию для смены её названия*\n",
-                         reply_markup=format_collection_list(db.get_list_collection(user_id), 'name_collection_'),
+                         reply_markup=await format_collection_list(db.get_list_collection(user_id), 'name_collection_'),
                          parse_mode='Markdown')
+    await remove_keyboard(message)
 
 
 # Выбор избранной коллекции для смены названия
@@ -350,83 +362,263 @@ async def send_name_handler(message: Message) -> None:
 async def send_name_handler(message: Message) -> None:
     user_id = message.from_user.id
     await message.answer("*Выберите избранную коллекцию для смены её названия*\n",
-                         reply_markup=format_collection_list(db.get_list_favorites(user_id), 'name_favorite_'),
+                         reply_markup=await format_collection_list(db.get_list_favorites(user_id), 'name_favorite_'),
                          parse_mode='Markdown')
+    await remove_keyboard(message)
 
 
 # Ожидание ввода названия коллекции
 @dp.callback_query(lambda c: c.data.startswith("name_collection_") or c.data.startswith("name_favorite_"))
 async def change_name_handler(callback_query: CallbackQuery, state: FSMContext) -> None:
-    collection_id, name = await get_collection_id_and_name(callback_query, 'name_collection_')
-    await callback_query.message.reply("Просим вас ввести новое название для коллекции",
+    type_id = 2 if callback_query.data.startswith("name_favorite_") else 1
+    collection_id, name = await get_collection_id_and_name(callback_query, type_id=type_id)
+    await callback_query.message.answer("Просим вас ввести новое название для коллекции",
                                        reply_markup=keyboard.back_menu)
+    await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
     await state.update_data(collection_id=collection_id)
-    await state.set_state(States.waiting_for_new_name)
+    new_state = States.waiting_for_name_collection if type_id == 1 else States.waiting_for_name_favorite
+    await state.set_state(new_state)
 
 
 # Смена названия коллекции
-@dp.message(F.text, States.waiting_for_new_name)
+@dp.message(F.text, States.waiting_for_name_collection)
+@dp.message(F.text, States.waiting_for_name_favorite)
 async def new_name_handler(message: Message, state: FSMContext) -> None:
+    # Запускаем параллельную задачу для режима ожидания
     loading_task = asyncio.create_task(send_loading_message(message.chat.id))
     loop = asyncio.get_running_loop()
     new_name = message.text
     data = await state.get_data()
     collection_id = data['collection_id']
     user_id = message.from_user.id
-    result = await loop.run_in_executor(executor, db.contains_collection_name, user_id, new_name)
-    if result > 0:
-        await message.reply("Такое название коллекции уже существует. Повторите попытку.",
-                            reply_markup=keyboard.back_menu)
-    else:
-        await loop.run_in_executor(executor, db.update_name_collection, new_name, collection_id)
-        await message.reply("Название коллекции успешно изменено.", reply_markup=keyboard.main_menu)
-        await state.clear()
-        loading_task.cancel()
-
-
-@dp.message(F.text == "Добавить в избранное")
-async def add_favourites_list_handler(message: Message, state: FSMContext) -> None:
-    user_id = message.from_user.id
-    await message.reply(
-        "*Выберите коллекцию для добавления в избранное*\n", reply_markup=format_collection_list(
-            db.get_list_favorites(user_id), 'add_favorite_'))
-
-
-@dp.message(F.text == "Удалить из избранного")
-async def del_favourites_list_handler(message: Message) -> None:
-    user_id = message.from_user.id
-    await message.reply(
-        "*Ваш список избранного\nВведите номер коллекции которую желаете удалить из избранного*\n", reply_markup=format_collection_list(
-            db.get_list_favorites(user_id), 'delete_favorite_'))
-
-
-@dp.callback_query(lambda c: c.data.startswith("add_favorite_") or c.data.startswith("delete_favorite_"))
-async def edit_favorite_handler(message: Message, state: FSMContext) -> None:
-    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
-    user_id = message.from_user.id
-    loop = asyncio.get_running_loop()
-    if await state.get_state() == States.state_add_favorite_list.state:
-        bd_message = await loop.run_in_executor(executor, db.get_list_collection, user_id)
-        is_favorite = True
-    else:
-        bd_message = await loop.run_in_executor(executor, db.get_list_favorites, user_id)
-        is_favorite = False
     try:
-        collection_id, name = bd_message[int(message.text) - 1]
-    except Exception:
-        await message.reply("Введите корректный номер коллекции в пределах списка.")
+        # Обновляем название коллекции
+        reply = await loop.run_in_executor(executor, db.update_collection_name, user_id, new_name, collection_id)
+        await message.reply(reply, reply_markup=keyboard.collections_menu)
+    # Обрабатываем ошибки
+    except Exception as e:
+        if States.waiting_for_name_collection:
+            await state.set_state(States.collections)
+        else:
+            await state.set_state(States.favorites)
+        await send_name_handler(message)
+        await message.answer(str(e))
         loading_task.cancel()
-        await favourites_list_handler(message, state)
-        return
-    await loop.run_in_executor(executor, db.edit_favorites, collection_id, is_favorite)
     await state.clear()
-    await message.answer(f"*Действия для {name} выполнены*\n" + format_collection_list(db.get_list_favorites(user_id)),
-                         reply_markup=keyboard.favorite_collections_menu, parse_mode='Markdown')
+    # Завершаем режим ожидания
+    loading_task.cancel()
+
+# Просмотр коллекции
+@dp.message(F.text == "Посмотреть коллекцию")
+async def show_handler(message: Message) -> None:
+    user_id = message.from_user.id
+    await message.reply(
+        "*Выберите коллекцию для её просмотра*\n", reply_markup=await format_collection_list(
+            db.get_list_collection(user_id), 'show_collection_'), parse_mode='Markdown')
+    await remove_keyboard(message)
+
+
+# Просмотр избранной коллекции
+@dp.message(F.text == "Посмотреть избранное")
+async def show_handler(message: Message) -> None:
+    user_id = message.from_user.id
+    await message.reply(
+        "*Выберите избранную коллекцию для её просмотра*\n", reply_markup=await format_collection_list(
+            db.get_list_collection(user_id), 'show_favorite_'), parse_mode='Markdown')
+    await remove_keyboard(message)
+
+# Выбор коллекции для добавления в избранное
+@dp.message(F.text == "Добавить в избранное")
+async def add_favorites_list_handler(message: Message) -> None:
+    user_id = message.from_user.id
+    await message.reply(
+        "*Выберите коллекцию для добавления в избранное*\n", reply_markup=await format_collection_list(
+            db.get_list_favorites(user_id, False), 'add_favorite_'), parse_mode='Markdown')
+    await remove_keyboard(message)
+
+# Выбор коллекции для удаления из избранного
+@dp.message(F.text == "Удалить из избранного")
+async def del_favorites_list_handler(message: Message) -> None:
+    user_id = message.from_user.id
+    await message.reply(
+        "*Выберите коллекцию для удаления из избранного*\n", reply_markup=await format_collection_list(
+            db.get_list_favorites(user_id), "delete_favorite_"), parse_mode='Markdown')
+    await remove_keyboard(message)
+
+# Изменение флага избранности для выбранной коллекции
+@dp.callback_query(lambda c: c.data.startswith("add_favorite_") or c.data.startswith("delete_favorite_"))
+async def edit_favorite_handler(callback_query: CallbackQuery) -> None:
+    # Запускаем параллельную задачу для режима ожидания
+    loading_task = asyncio.create_task(send_loading_message(callback_query.message.chat.id))
+    loop = asyncio.get_running_loop()
+    # Получаем id и название коллекции
+    is_favorite = callback_query.data.startswith("add_favorite_")
+    type_id = 3 if is_favorite else 2
+    collection_id, name = await get_collection_id_and_name(callback_query, loop, type_id)
+    # Меняем флаг избранности
+    await loop.run_in_executor(executor, db.edit_favorites, collection_id, is_favorite)
+    await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+    if is_favorite:
+        await callback_query.message.answer(f"Коллекция {name} успешно добавлена в избранное.",
+                                            reply_markup=keyboard.favorite_collections_menu)
+    else:
+        await callback_query.message.answer(f"Коллекция {name} удалена из избранного.",
+                                            reply_markup=keyboard.favorite_collections_menu)
+    loading_task.cancel()
+
+# Выбор коллекции для пополнения
+@dp.message(F.text == "Пополнить коллекцию")
+async def add_handler(message: Message) -> None:
+    user_id = message.from_user.id
+    await message.reply(
+        "*Выберите коллекцию для её пополнения*\n", reply_markup=await format_collection_list(
+            db.get_list_collection(user_id), 'add_badges_'), parse_mode='Markdown')
+    await remove_keyboard(message)
+
+# Ожидание архива с изображениями для пополнения коллекции
+@dp.callback_query(lambda c: c.data.startswith("add_badges_"))
+async def add_badges_handler(callback_query: CallbackQuery, state: FSMContext) -> None:
+    collection_id, name = await get_collection_id_and_name(callback_query, type_id=1)
+    await callback_query.message.answer("Отправьте ZIP-файл с изображениями.", reply_markup=keyboard.back_menu)
+    await state.update_data(collection_id=collection_id, collection_name=name)
+    await state.set_state(States.waiting_for_zip_add)
+    await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+
+# Пополнение коллекции
+@dp.message(F.document, States.waiting_for_zip_add)
+async def get_zip_handler(message: Message, state: FSMContext) -> None:
+    await message.reply("Файл получен.", reply_markup=keyboard.back_menu)
+    # Запускаем параллельную задачу для режима ожидания
+    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
+    data = await state.get_data()
+    collection_id = data.get('collection_id')
+    collection_name = data.get('collection_name')
+    zip_file_id = message.document.file_id
+
+    try:
+        await process_zip_file(
+            zip_file_id=zip_file_id,
+            collection_id=collection_id,
+            user_id=message.from_user.id,
+            reply_func=lambda: message.reply(f"Коллекция '{collection_name}' успешно пополнена.",
+                                             reply_markup=keyboard.main_menu)
+        )
+        # Завершаем режим ожидания
+        loading_task.cancel()
+    except Exception as e:
+        await message.reply(f"Ошибка при пополнении коллекции: {e}", reply_markup=keyboard.main_menu)
+        loading_task.cancel()
+
+    await state.clear()
+
+
+# Ожидание архива с изображениями при создании коллекции
+@dp.message(F.text == "Добавить коллекцию")
+async def add_handler(message: Message, state: FSMContext) -> None:
+    await message.reply("Отправьте ZIP-файл с изображениями.", reply_markup=keyboard.back_menu)
+    await state.set_state(States.waiting_for_zip_create)
+
+
+# Ожидание ввода названия новой коллекции
+@dp.message(F.document, States.waiting_for_zip_create)
+async def get_zip_handler(message: Message, state: FSMContext) -> None:
+    await state.update_data(zip_file_id=message.document.file_id)
+    await message.reply("Файл получен. Введите название новой коллекции.", reply_markup=keyboard.back_menu)
+    await state.set_state(States.add_new_collection_zip_name)
+
+
+# Создание коллекции
+@dp.message(F.text, States.add_new_collection_zip_name)
+async def create_collection_handler(message: Message, state: FSMContext) -> None:
+    # Запускаем параллельную задачу для режима ожидания
+    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
+    data = await state.get_data()
+    zip_file_id = data.get('zip_file_id')
+
+    # Добавляем коллекцию
+    while True:
+        collection_name = message.text
+        try:
+            collection_id = db.add_collection(message.from_user.id, collection_name)[1]
+            break
+        except Exception as e:
+            await message.reply(str(e) + '\nПопробуйте ещё раз.', reply_markup=keyboard.back_menu)
+            loading_task.cancel()
+            collection_name = await dp.throttle("collection_name", rate=1)(
+                dp.message(F.text, States.add_new_collection_zip_name))
+            continue
+
+    try:
+        await process_zip_file(
+            zip_file_id=zip_file_id,
+            collection_id=collection_id,
+            user_id=message.from_user.id,
+            reply_func=lambda: message.reply(f"Коллекция '{collection_name}' успешно создана.", reply_markup=keyboard.main_menu)
+        )
+        # Завершаем режим ожидания
+        loading_task.cancel()
+    except Exception as e:
+        await message.reply(f"Ошибка при создании коллекции: {e}", reply_markup=keyboard.main_menu)
+        loading_task.cancel()
+
+    await state.clear()
+
+# Обработка архива
+async def process_zip_file(zip_file_id, collection_id, user_id, reply_func):
+    loop = asyncio.get_running_loop()
+
+    # Загружаем архив
+    zip_file = await bot.get_file(zip_file_id)
+    zip_path = f'../Photo/ZIP/{zip_file.file_path}'
+    await bot.download_file(zip_file.file_path, zip_path)
+
+    zip_ref = zipfile.ZipFile(zip_path, 'r')
+    images = []
+    # Добавляем изображения в папку
+    for idx, file in enumerate(zip_ref.namelist()):
+        filename, file_extension = os.path.splitext(file)
+        if file_extension == '.png' or file_extension == '.jpeg':
+            new_filename = f"{zip_file_id}_{idx}{file_extension}"
+            zip_ref.extract(file, '../Photo/noBg/')
+            os.rename(f"../Photo/noBg/{file}", f"../Photo/noBg/{new_filename}")
+            images.append(new_filename)
+
+    zip_ref.close()
+    os.remove(zip_path)
+
+    # Добавляем изображения в БД
+    for img_name in images:
+        img_path = f"../Photo/noBg/{img_name}"
+        await loop.run_in_executor(executor, db.insert_image, user_id, img_path, collection_id)
+
+    await reply_func()
+
+# Выбор коллекции для удаления
+@dp.message(F.text == "Удалить коллекцию")
+async def delete_collection_handler(message: Message) -> None:
+    user_id = message.from_user.id
+    await message.answer("*Выберите коллекцию для её удаления*\n",
+                         reply_markup=await format_collection_list(db.get_list_collection(user_id), 'delete_collection_'),
+                         parse_mode='Markdown')
+
+
+# Удаление коллекции
+@dp.callback_query(lambda c: c.data.startswith("delete_collection_"))
+async def delete_collection_number_handler(callback_query: CallbackQuery) -> None:
+    # Запускаем параллельную задачу для режима ожидания
+    loading_task = asyncio.create_task(send_loading_message(callback_query.message.chat.id))
+    loop = asyncio.get_running_loop()
+    # Получаем id коллекции
+    collection_id = (await get_collection_id_and_name(callback_query, loop, 1))[0]
+    await loop.run_in_executor(executor, db.delete_collection,callback_query.from_user.id, collection_id)
+    await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+    await callback_query.message.answer("Коллекция успешно удалена.", reply_markup=keyboard.collections_menu)
+    # Завершаем режим ожидания
     loading_task.cancel()
 
 
-# Форматирование списка коллекций
-def format_collection_list(collections, prefix):
+# Форматирование списка коллекций в InlineKeyboard
+async def format_collection_list(collections, prefix):
     new_keyboard = []
     if collections not in ['Нет коллекций', 'Нет избранных коллекций']:
         for i, (_, name) in enumerate(collections, start=1):
@@ -436,138 +628,24 @@ def format_collection_list(collections, prefix):
     new_keyboard.append([InlineKeyboardButton(text="Назад", callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=new_keyboard)
 
-@dp.message(F.text == "Добавить коллекцию")
-async def add_handler(message: Message, state: FSMContext) -> None:
-    await message.reply("Отправьте ZIP-файл с изображениями.", reply_markup=keyboard.back_menu)
-    await state.set_state(States.waiting_for_zip)
 
-
-@dp.message(F.document, States.waiting_for_zip)
-async def get_zip_handler(message: Message, state: FSMContext) -> None:
-    await state.update_data(zip_file_id=message.document.file_id)
-    await message.reply("Файл получен. Введите название новой коллекции.", reply_markup=keyboard.back_menu)
-    await state.set_state(States.add_new_collection_zip_name)
-
-
-@dp.message(F.text, States.add_new_collection_zip_name)
-async def create_collection_handler(message: Message, state: FSMContext) -> None:
-    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
-    loop = asyncio.get_running_loop()
-    data = await state.get_data()
-    zip_file_id = data.get('zip_file_id')
-    collection_name = message.text
-    collection_id = 0
-
-    while True:
-        collection_name = message.text
-        try:
-            collection_id = db.add_collection(message.from_user.id, collection_name)
-            break
-        except Exception as e:
-            await message.reply("Коллекция с таким именем уже существует. Введите новое имя:", reply_markup=keyboard.back_menu)
-            loading_task.cancel()
-            collection_name = await dp.throttle("collection_name", rate=1)(dp.message(F.text, States.add_new_collection_zip_name))
-            continue
-
-    try:
-        zip_file = await bot.get_file(zip_file_id)
-        zip_path = f'../Photo/ZIP/{zip_file.file_path}'
-        await bot.download_file(zip_file.file_path, zip_path)
-
-        zip_ref = zipfile.ZipFile(zip_path, 'r')
-        images = []
-        for idx, file in enumerate(zip_ref.namelist()):
-            filename, file_extension = os.path.splitext(file)
-            if file_extension == '.png':
-                new_filename = f"{zip_file_id}_{idx}.png"
-                zip_ref.extract(file, '../Photo/noBg/')
-                os.rename(f"../Photo/noBg/{file}", f"../Photo/noBg/{new_filename}")
-                images.append(new_filename)
-
-        zip_ref.close()
-        os.remove(zip_path)
-
-        for img_name in images:
-            img_path = f"../Photo/noBg/{img_name}"
-            await loop.run_in_executor(executor, db.insert_image, message.from_user.id, img_path, collection_id[1])
-
-        await message.reply(f"Коллекция '{collection_name}' успешно создана.", reply_markup=keyboard.main_menu)
-        loading_task.cancel()
-    except Exception as e:
-        await message.reply(f"Ошибка при создании коллекции: {e}", reply_markup=keyboard.main_menu)
-        loading_task.cancel()
-
-    await state.clear()
-
-
-@dp.message(F.text == "Удалить коллекцию")
-async def remove_handler(message: Message) -> None:
-    await message.reply("Секция 'Удалить' пока в разработке.", reply_markup=keyboard.collection_menu)
-
-
-@dp.message(F.text == "Редактировать")
-async def edit_handler(message: Message) -> None:
-    await message.reply(
-        "Представим, что вы уже выбрали коллекцию из перечисленных. Что вы хотите сделать с данной коллекцией?",
-        reply_markup=keyboard.all_collections_menu)
-
-
-@dp.message(F.text == "Добавить значок")
-async def send_badge_handler(message: Message, state: FSMContext) -> None:
-    await message.reply("Пожалуйста, отправьте фото со значком, который вы хотите добавить в коллекцию.",
-                        reply_markup=keyboard.back_menu)
-    await state.set_state(States.add_badge)
-
-
-@dp.message(F.photo, States.add_badge)
-async def add_badge_handler(message: Message, state: FSMContext) -> None:
-    # # Получение файла фотографии
-    # photo = message.photo[-1]  # Берем последнюю (самую крупную) версию фотографии
-    # file_info = await bot.get_file(photo.file_id)
-    # file = await bot.download_file(file_info.file_path)
-    #
-    # # Преобразование файла в байтовый поток
-    # bytes_stream = BytesIO()
-    # bytes_stream.write(file.read())
-    # bytes_stream.seek(0)
-    #
-    # try:
-    #     conn = get_db_connection()
-    #     cursor = conn.cursor()
-    #
-    #     # Запись фотографии в базу данных
-    #     cursor.execute("INSERT INTO photos (user_id, photo) VALUES (%s, %s)",
-    #                    (message.from_user.id, psycopg2.Binary(bytes_stream.getvalue())))
-    #     conn.commit()
-    #
-    #     cursor.close()
-    #     conn.close()
-    #
-    #     await message.reply("Фотография успешно добавлена в базу данных!")
-    # except Exception as e:
-    #     logging.error(f"Ошибка при добавлении фотографии в базу данных: {e}")
-    #     await message.reply("Произошла ошибка при добавлении фотографии в базу данных.")
-    pass
-
-
-@dp.message(F.text == "Удалить значок")
-async def send_name_handler(message: Message, state: FSMContext) -> None:
-    await message.reply("Пожалуйста, отправьте фото со значком, который вы хотите добавить в коллекцию.",
-                        reply_markup=keyboard.back_menu)
-    await state.set_state(States.add_badge)
-
-async def get_collection_id_and_name(callback_query, col_prefix='', loop=None):
+# Получение id и названия коллекции
+async def get_collection_id_and_name(callback_query, loop=None, type_id=1):
     if loop is None:
         loop = asyncio.get_running_loop()
     user_id = callback_query.from_user.id
     # Ищем id коллекции и её название в БД
-    if col_prefix != '' or callback_query.data.startswith(col_prefix):
+    if type_id == 1:
         db_message = await loop.run_in_executor(executor, db.get_list_collection, user_id)
-    else:
+    elif type_id == 2:
         db_message = await loop.run_in_executor(executor, db.get_list_favorites, user_id)
+    else:
+        db_message = await loop.run_in_executor(executor, db.get_list_favorites, user_id, False)
     collection_id, name = db_message[int(callback_query.data.split("_")[2]) - 1]
     return collection_id, name
 
+
+# Вывод инструкции
 @dp.message(F.text == "Инструкция")
 async def instruction_handler(message: Message) -> None:
     instruction = (
@@ -579,12 +657,13 @@ async def instruction_handler(message: Message) -> None:
         "*Ограничения:*\n"
         "1. Один пользователь может иметь не более 100 коллекций.\n"
         "2. Одна коллекция может содержать не более 200 фотографий.\n"
-        "3. Название коллекции должно содержать от 3 до 100 символов.\n"
-        "4. Название значка должно содержать от 3 до 70 символов."
+        "3. Название коллекции должно содержать от 3 до 55 символов.\n"
+        "4. Название значка должно содержать от 3 до 15 символов."
     )
     await message.answer(instruction, reply_markup=keyboard.instruction_menu, parse_mode='Markdown')
 
 
+# Обращение к ТП
 @dp.message(F.text == "Обратиться к ТП")
 async def support_handler(message: Message) -> None:
     answer = (
@@ -597,6 +676,7 @@ async def support_handler(message: Message) -> None:
     await message.answer(answer, reply_markup=keyboard.main_menu),
 
 
+# Режим ожидания
 async def send_loading_message(chat_id):
     message = await bot.send_message(chat_id, "Ожидайте, бот думает")
     dots = ""
@@ -609,19 +689,25 @@ async def send_loading_message(chat_id):
             await bot.edit_message_text(f"Ожидайте, бот думает{dots}", chat_id=chat_id, message_id=message.message_id)
             await asyncio.sleep(0.5)
     except asyncio.CancelledError:
-
         await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
 
 
-# Возвращение в главное меню
+# Удаление клавиатуры
+async def remove_keyboard(message: Message) -> None:
+    await message.answer("ㅤ", reply_markup=ReplyKeyboardRemove())
+    await bot.delete_message(message.chat.id, message.message_id + 1)
+
+
+# Возвращение в главное меню для ReplyKeyboard
 @dp.message(F.text == "Назад")
 async def back_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.reply("Вы вернулись в главное меню.", reply_markup=keyboard.main_menu)
 
 
+# Возвращение в главное меню для InlineKeyboard
 @dp.callback_query(lambda c: c.data == "main_menu")
-async def process_callback(callback_query: CallbackQuery):
+async def process_callback(callback_query: CallbackQuery) -> None:
     await callback_query.message.answer("Вы вернулись в главное меню.", reply_markup=keyboard.main_menu)
     await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
 
