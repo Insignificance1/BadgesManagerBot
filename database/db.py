@@ -91,11 +91,11 @@ class DataBase:
 
     # Обновление названия значка
     def update_image_name(self, path, name_badge):
-        if 3 <= len(name_badge) <= 70:
+        if 3 <= len(name_badge) <= 30:
             try:
                 # Отправляем SQL-запрос для изменения названия значка
                 self.exec_query(
-                    f"""update {schema_name}.images set name='{name_badge}' where path={path}""",
+                    f"""update {schema_name}.images set name='{name_badge}' where path='{path}'""",
                     f"[INFO] Update name collection={name_badge} with path={path}", True)
                 return f"Название значка успешно измененено на {name_badge}."
             except Exception as e:
@@ -122,7 +122,7 @@ class DataBase:
         try:
             # Отправляем SQL-запрос для изменения количества значков
             self.exec_query(
-                f"""update {schema_name}.images set count='{count}' where path={path}""",
+                f"""update {schema_name}.images set count='{count}' where path='{path}'""",
                 f"[INFO] Update image count={count}, where image with path={path}", True)
             return f"Количество значков успешно измененено на {count}."
         except ValueError:
@@ -181,7 +181,7 @@ class DataBase:
 
     # Получение названия изображения по указанному пути
     def get_image(self, path):
-        return self.exec_query(f"""select name from {schema_name}.images where path={path}""",
+        return self.exec_query(f"""select name from {schema_name}.images where path='{path}'""",
                                  "[INFO] Collection list were received")
 
     # Изменение флага избранности для выбранной коллекции
@@ -192,7 +192,7 @@ class DataBase:
 
     # Удаление изображения по указанному пути
     def delete_image(self, path):
-        self.exec_query(f"""delete from {schema_name}.images where path = {path}""",
+        self.exec_query(f"""delete from {schema_name}.images where path ='{path}' """,
                         "[INFO] Images were deleted", True)
 
     # Удаление коллекции пользователя

@@ -363,7 +363,8 @@ async def send_pdf(callback_query: CallbackQuery):
     pdf = FSInputFile(pdf_path)
     loading_task.cancel()
     try:
-        await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+        await bot.delete_message(chat_id=callback_query.message.chat.id,
+                                 message_id=callback_query.message.message_id)
         await bot.send_document(chat_id=callback_query.message.chat.id, document=pdf)
         os.remove(pdf_path)
     except TelegramBadRequest:
@@ -473,6 +474,7 @@ async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext
 # Обработка действия с изображением
 @dp.callback_query(lambda c: c.data.startswith('photo_'))
 async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext):
+    loop = asyncio.get_running_loop()
     data = await state.get_data()
     images = data.get('images')
     edit_idx = data.get('edit_idx')
@@ -483,7 +485,7 @@ async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext
     elif action == 'next':
         edit_idx += 1
     elif action == 'del':
-        db.delete_image(images[edit_idx])
+        loop.run_in_executor(executor, db.delete_image, images[edit_idx])
         del images[edit_idx]
         await callback_query.answer()
         return
@@ -522,29 +524,31 @@ async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext
 # Обработка ввода нового названия значка
 @dp.message(F.text, States.waiting_for_image_name)
 async def process_new_name(message: types.Message, state: FSMContext):
+    loop = asyncio.get_running_loop()
     new_name = message.text
-    if 3 <= len(new_name) <= 70:
+    if 3 <= len(new_name) <= 30:
         data = await state.get_data()
         images = data.get('images')
         edit_idx = data.get('edit_idx')
         image_path = images[edit_idx]
         try:
-            db.update_image_name(image_path, new_name)
-            await message.reply(f'Название значка успешно измененено на "{new_name}".', reply_markup=keyboard.main_menu)
+            await loop.run_in_executor(executor, db.update_image_name,image_path, new_name)
+            await message.reply(f'Название значка успешно изменено на "{new_name}".', reply_markup=keyboard.main_menu)
             await state.clear()
         except Exception as e:
             await message.reply(str(e), reply_markup=keyboard.main_menu)
             await state.clear()
     else:
-        await message.reply("[Ошибка] Неверное название значка. Название должно содержать от 3 до 70 символов.")
+        await message.reply("[Ошибка] Неверное название значка. Название должно содержать от 3 до 30 символов.")
 
 
 # Обработка ввода нового количества значков
 @dp.message(F.text, States.waiting_for_image_count)
 async def process_new_count(message: types.Message, state: FSMContext):
+    loop = asyncio.get_running_loop()
     try:
         new_count = int(message.text)
-        if new_count >= 0:
+        if new_count >= 0 and new_count <= 32767:
             # реализация update_count функции аналогично update_image_name
             data = await state.get_data()
             images = data.get('images')
