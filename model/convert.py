@@ -50,7 +50,7 @@ class Converter:
         margin = 10  # Отступ между изображениями
         row_height = 70  # Высота строки (название + картинка + количество + отступ)
 
-        total_count = sum(int(count) for count in count_list)  # Общее количество значков
+        total_count = sum(int(count[0]) for count in count_list)  # Общее количество значков
 
         # Добавление общего количества в правый верхний угол первой страницы
         self.pdf.set_font("N", '', 10)
@@ -81,7 +81,8 @@ class Converter:
             self.pdf.set_xy(x-5, y + 30)
             self.pdf.set_font("N", '', 12)
             for line in lines:
-                self.pdf.cell(img_w + margin, 10, line, 0, 2, 'C')
+                for char in line:
+                    self.pdf.cell(img_w + margin, 10, char, 0, 2, 'C')
 
                 # После каждой строки, смещаем y на 10
                 y += 10

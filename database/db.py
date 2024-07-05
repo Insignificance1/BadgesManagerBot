@@ -116,6 +116,27 @@ class DataBase:
         return self.exec_query(f"""select path from {schema_name}.images where id_collection={id_collection} and count=0""",
                                    "[INFO] Collect list null badges", True)
 
+
+    def get_list_count(self, id_collection, is_all_count):
+        if is_all_count:
+            return self.exec_query(f"""select count from {schema_name}.images where id_collection={id_collection}""",
+                                   "[INFO] Collect list count all badges", True)
+        else:
+            return self.exec_query(
+                f"""select count from {schema_name}.images where id_collection={id_collection} and count=0""",
+                "[INFO] Collect list count null badges", True)
+
+
+    def get_all_name(self, id_collection, is_all_count):
+        if is_all_count:
+            return self.exec_query(f"""select name from {schema_name}.images where id_collection={id_collection}""",
+                                   "[INFO] Collect list count all badges", True)
+        else:
+            return self.exec_query(
+                f"""select name from {schema_name}.images where id_collection={id_collection} and count=0""",
+                "[INFO] Collect list count null badges", True)
+
+
     # Получение списка всех избранных (или неизбранных) коллекций пользователя
     def get_list_favorites(self, id_user, is_favorites=True):
         message = self.exec_query(f"select id, name from {schema_name}.collections where id_user={id_user} "

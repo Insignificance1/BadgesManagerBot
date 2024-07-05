@@ -310,7 +310,7 @@ async def pdf_collections_handler(message: Message) -> None:
 async def pdf_collections_handler(message: Message) -> None:
     user_id = message.from_user.id
     await message.answer("*Выберите коллекцию для выгрузки в PDF*\n",
-                         reply_markup=format_collection_list(db.get_list_collection(user_id), 'pdf_null_'),
+                         reply_markup= await format_collection_list(db.get_list_collection(user_id), 'pdf_null_'),
                          parse_mode='Markdown')
 
 # Выгрузка в PDF-файл выбранной коллекции
@@ -324,8 +324,10 @@ async def send_pdf(callback_query: CallbackQuery):
     if callback_query.data.startswith("pdf_null_"):
         type_id = 3
         null_or_all_images = db.get_null_badges
+        is_all_count = False
     else:
         null_or_all_images = db.get_all_images
+        is_all_count = True
         if callback_query.data.startswith("pdf_favorite_"):
             type_id = 2
         else:
@@ -333,9 +335,12 @@ async def send_pdf(callback_query: CallbackQuery):
     collection_id, name = await get_collection_id_and_name(callback_query, type_id=type_id)
     # Запрашиваем список путей всех изображений которых 0 или просто всех
     images_list = await loop.run_in_executor(executor, null_or_all_images, collection_id)
+    count_list = await loop.run_in_executor(executor, db.get_list_count, collection_id, is_all_count)
+    name_list = await loop.run_in_executor(executor, db.get_all_name, collection_id, is_all_count)
     converter = Converter()
     # Конвертируем изображения в один PDF-файл
-    pdf_path = await loop.run_in_executor(executor, converter.convert_to_pdf, name, collection_id, images_list)
+    #pdf_path = await loop.run_in_executor(executor, converter.convert_to_pdf_base, name, collection_id, images_list)
+    pdf_path = await loop.run_in_executor(executor, converter.convert_to_pdf_ext, name, collection_id, images_list, name_list, count_list)
     # Отправляем файл пользователю
     pdf = FSInputFile(pdf_path)
     loading_task.cancel()
