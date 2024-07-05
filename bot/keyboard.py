@@ -56,14 +56,17 @@ collections_menu = ReplyKeyboardMarkup(
 favorite_collections_menu = ReplyKeyboardMarkup(
     keyboard=[
         [
+            KeyboardButton(text="Посмотреть избранное"),
+            KeyboardButton(text="Изменить название")
+        ],
+        [
             KeyboardButton(text="Добавить в избранное"),
             KeyboardButton(text="Удалить из избранного")
         ],
         [
-            KeyboardButton(text="Изменить название"),
-            KeyboardButton(text="Выгрузить в PDF")
-        ],
-        [KeyboardButton(text="Назад")]
+            KeyboardButton(text="Выгрузить в PDF"),
+            KeyboardButton(text="Назад")
+        ]
     ],
     resize_keyboard=True
 )
@@ -88,7 +91,7 @@ all_collections_menu = ReplyKeyboardMarkup(
 )
 
 # Клавиатура редактирований коллекций
-keyboard = InlineKeyboardMarkup(inline_keyboard=[
+edit_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Поменять название", callback_data="change_name")],
         [InlineKeyboardButton(text="Поменять количество", callback_data="change_count")],
         [
