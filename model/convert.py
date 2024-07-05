@@ -94,7 +94,7 @@ class Converter:
             # Добавляем количество значков
             self.pdf.set_font("N", '', 10)
             self.pdf.set_xy(x - 5, y=y + 30 + (len(lines) * 10))
-            self.pdf.cell(img_w + margin, 10, f"{count} значков", 1, 1, 'C')
+            self.pdf.cell(img_w + margin, 10, f"{int(count[0])} значков", 1, 1, 'C')
 
             x += img_w + margin  # Смещаем x вправо для следующего значка
 
