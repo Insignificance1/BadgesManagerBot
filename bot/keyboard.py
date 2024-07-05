@@ -90,19 +90,6 @@ all_collections_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Клавиатура редактирований коллекций
-edit_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Поменять название", callback_data="change_name")],
-        [InlineKeyboardButton(text="Поменять количество", callback_data="change_count")],
-        [
-            InlineKeyboardButton(text="⬅️", callback_data="prev"),
-            InlineKeyboardButton(text="➡️", callback_data="next")
-        ],
-        [InlineKeyboardButton(text="❌", callback_data="del")]
-    ],
-    resize_keyboard=True
-)
-
 # Клавиатура инструкции
 instruction_menu = ReplyKeyboardMarkup(
     keyboard=[
@@ -144,46 +131,74 @@ function3_menu = ReplyKeyboardMarkup(
 
 
 def create_edit_keyboard(idx, num_objects):
+    buttons = [[InlineKeyboardButton(text="Поменять название", callback_data="photo_name")],
+               [InlineKeyboardButton(text="Поменять количество", callback_data="photo_count")]]
+
+    if idx == 0:
+        buttons.append([
+            InlineKeyboardButton(text="✖", callback_data="photo_cross"),
+            InlineKeyboardButton(text="➡️", callback_data="photo_next")
+        ])
+    elif idx == num_objects - 1:
+        buttons.append([
+            InlineKeyboardButton(text="⬅️", callback_data="photo_prev"),
+            InlineKeyboardButton(text="✖", callback_data="photo_cross"),
+        ])
+    else:
+        buttons.append([
+            InlineKeyboardButton(text="⬅️", callback_data="photo_prev"),
+            InlineKeyboardButton(text="➡️", callback_data="photo_next")
+        ])
+
+    buttons.extend([
+        [InlineKeyboardButton(text="Удалить", callback_data="photo_del")],
+        [InlineKeyboardButton(text="Выход", callback_data="photo_exit")]
+    ])
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons, row_width=1)
+    return keyboard
+
+def create_rotate_keyboard(idx, num_objects):
     buttons = []
 
     if idx == 0:
         buttons.append([
-            InlineKeyboardButton(text="✖", callback_data="edit_cross"),
-            InlineKeyboardButton(text="→", callback_data="edit_right"),
+            InlineKeyboardButton(text="✖", callback_data="rotate_cross"),
+            InlineKeyboardButton(text="→", callback_data="rotate_right"),
         ])
     elif idx == num_objects - 1:
         buttons.append([
-            InlineKeyboardButton(text="←", callback_data="edit_left"),
-            InlineKeyboardButton(text="✖", callback_data="edit_cross"),
+            InlineKeyboardButton(text="←", callback_data="rotate_left"),
+            InlineKeyboardButton(text="✖", callback_data="rotate_cross"),
         ])
     else:
         buttons.append([
-            InlineKeyboardButton(text="←", callback_data="edit_left"),
-            InlineKeyboardButton(text="→", callback_data="edit_right"),
+            InlineKeyboardButton(text="←", callback_data="rotate_left"),
+            InlineKeyboardButton(text="→", callback_data="rotate_right"),
         ])
 
     buttons.extend([
         [
-            InlineKeyboardButton(text="↶ 1°", callback_data="edit_+1"),
-            InlineKeyboardButton(text="↷ 1°", callback_data="edit_-1"),
+            InlineKeyboardButton(text="↶ 1°", callback_data="rotate_+1"),
+            InlineKeyboardButton(text="↷ 1°", callback_data="rotate_-1"),
         ],
         [
-            InlineKeyboardButton(text="↶ 10°", callback_data="edit_+10"),
-            InlineKeyboardButton(text="↷ 10°", callback_data="edit_-10"),
+            InlineKeyboardButton(text="↶ 10°", callback_data="rotate_+10"),
+            InlineKeyboardButton(text="↷ 10°", callback_data="rotate_-10"),
         ],
         [
-            InlineKeyboardButton(text="↶ 45°", callback_data="edit_+45"),
-            InlineKeyboardButton(text="↷ 45°", callback_data="edit_-45"),
+            InlineKeyboardButton(text="↶ 45°", callback_data="rotate_+45"),
+            InlineKeyboardButton(text="↷ 45°", callback_data="rotate_-45"),
         ],
         [
-            InlineKeyboardButton(text="↶ 90°", callback_data="edit_+90"),
-            InlineKeyboardButton(text="↷ 90°", callback_data="edit_-90"),
+            InlineKeyboardButton(text="↶ 90°", callback_data="rotate_+90"),
+            InlineKeyboardButton(text="↷ 90°", callback_data="rotate_-90"),
         ],
         [
-            InlineKeyboardButton(text="Завершить редактирование", callback_data="edit_continue"),
+            InlineKeyboardButton(text="Завершить редактирование", callback_data="rotate_continue"),
         ],
         [
-            InlineKeyboardButton(text="Выход", callback_data="edit_exit"),
+            InlineKeyboardButton(text="Выход", callback_data="rotate_exit"),
         ],
     ])
 

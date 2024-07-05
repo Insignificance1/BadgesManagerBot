@@ -85,9 +85,23 @@ class DataBase:
                 new_collection_id = result[0][0]
                 return "Коллекция успешно создана", new_collection_id
             except Exception as e:
-                raise Exception("[Ошибка] Произошла ошибка при попытке изменения базы данных. Попробуйте ещё раз.") from e
+                raise Exception("[Ошибка] Произошла ошибка при попытке изменения базы данных.") from e
         else:
             raise Exception("[Ошибка] Неверное название коллекции или коллекция с таким именем уже существует.")
+
+    # Обновление названия значка
+    def update_image_name(self, path, name_badge):
+        if 3 <= len(name_badge) <= 70:
+            try:
+                # Отправляем SQL-запрос для изменения названия значка
+                self.exec_query(
+                    f"""update {schema_name}.images set name='{name_badge}' where path={path}""",
+                    f"[INFO] Update name collection={name_badge} with path={path}", True)
+                return f"Название значка успешно измененено на {name_badge}."
+            except Exception as e:
+                raise Exception("[Ошибка] Произошла ошибка при попытке изменения базы данных.") from e
+        else:
+            raise Exception("[Ошибка] Неверное название значка.")
 
     # Обновление названия коллекции
     def update_collection_name(self, id_user, name_collection, id_collection):
@@ -99,9 +113,22 @@ class DataBase:
                     f"[INFO] Update name collection={name_collection} with id={id_collection}", True)
                 return f"Название коллекции успешно измененено на {name_collection}."
             except Exception as e:
-                raise Exception("[Ошибка] Произошла ошибка при попытке изменения базы данных. Попробуйте ещё раз.") from e
+                raise Exception("[Ошибка] Произошла ошибка при попытке изменения базы данных.") from e
         else:
             raise Exception("[Ошибка] Неверное название коллекции или коллекция с таким именем уже существует.")
+
+    # Обновление количества значков
+    def update_image_count(self, path, count):
+        try:
+            # Отправляем SQL-запрос для изменения количества значков
+            self.exec_query(
+                f"""update {schema_name}.images set count='{count}' where path={path}""",
+                f"[INFO] Update image count={count}, where image with path={path}", True)
+            return f"Количество значков успешно измененено на {count}."
+        except ValueError:
+            raise ValueError("[Ошибка] Введённое значение не является числом.")
+        except Exception as e:
+            raise Exception("[Ошибка] Произошла ошибка при попытке изменения базы данных.") from e
 
     # Получение списка всех коллекций пользователя
     def get_list_collection(self, id_user):
@@ -152,16 +179,21 @@ class DataBase:
         return self.exec_query(f"""select path from {schema_name}.images where (id_collection={id_collection})""",
                                  "[INFO] Collection list were received", True)
 
+    # Получение названия изображения по указанному пути
+    def get_image(self, path):
+        return self.exec_query(f"""select name from {schema_name}.images where path={path}""",
+                                 "[INFO] Collection list were received")
+
     # Изменение флага избранности для выбранной коллекции
     def edit_favorites(self, id_collection, is_favorites):
         return self.exec_query(
             f"""update {schema_name}.collections set favorites = {is_favorites} where id = {id_collection}""",
             "[INFO] The collection is marked as favorites", False)
 
-    # Удаление файла по указанному пути
-    def delete_file_by_path(self, path: str):
-        if os.path.exists(path):
-            os.remove(path)
+    # Удаление изображения по указанному пути
+    def delete_image(self, path):
+        self.exec_query(f"""delete from {schema_name}.images where path = {path}""",
+                        "[INFO] Images were deleted", True)
 
     # Удаление коллекции пользователя
     def delete_collection(self, id_user, collection_id):
@@ -181,9 +213,14 @@ class DataBase:
             self.exec_query(f"""delete from {schema_name}.collections where id = {collection_id}""",
                             "[INFO] Collection was deleted", True)
 
-            return "Коллекция успешно удалена"
+            return "Коллекция успешно удалена."
         else:
-            raise Exception("[Ошибка] Коллекция не существует")
+            raise Exception("[Ошибка] Коллекции не существует.")
+
+    # Удаление файла по указанному пути
+    def delete_file_by_path(self, path: str):
+        if os.path.exists(path):
+            os.remove(path)
 
     # Проверка наличия коллекции с выбранным id у пользователя
     def contains_collection(self, id_user, collection_id):
