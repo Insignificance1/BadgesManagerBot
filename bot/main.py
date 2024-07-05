@@ -440,6 +440,7 @@ async def create_collection_handler(message: Message, state: FSMContext) -> None
     data = await state.get_data()
     zip_file_id = data.get('zip_file_id')
 
+    # Добавляем коллекцию
     while True:
         collection_name = message.text
         try:
@@ -454,12 +455,14 @@ async def create_collection_handler(message: Message, state: FSMContext) -> None
             continue
 
     try:
+        # Загружаем архив
         zip_file = await bot.get_file(zip_file_id)
         zip_path = f'../Photo/ZIP/{zip_file.file_path}'
         await bot.download_file(zip_file.file_path, zip_path)
 
         zip_ref = zipfile.ZipFile(zip_path, 'r')
         images = []
+        # Добавляем изображения в папку
         for idx, file in enumerate(zip_ref.namelist()):
             filename, file_extension = os.path.splitext(file)
             if file_extension == '.png':
@@ -471,11 +474,13 @@ async def create_collection_handler(message: Message, state: FSMContext) -> None
         zip_ref.close()
         os.remove(zip_path)
 
+        # Добавляем изображения в БД
         for img_name in images:
             img_path = f"../Photo/noBg/{img_name}"
             await loop.run_in_executor(executor, db.insert_image, message.from_user.id, img_path, collection_id)
 
         await message.reply(f"Коллекция '{collection_name}' успешно создана.", reply_markup=keyboard.main_menu)
+        # Завершаем режим ожидания
         loading_task.cancel()
     except Exception as e:
         await message.reply(f"Ошибка при создании коллекции: {e}", reply_markup=keyboard.main_menu)
@@ -483,42 +488,27 @@ async def create_collection_handler(message: Message, state: FSMContext) -> None
 
     await state.clear()
 
-
+# Выбор коллекции для удаления
 @dp.message(F.text == "Удалить коллекцию")
-async def delete_collection_handler(message: Message, state: FSMContext) -> None:
-    loop = asyncio.get_running_loop()
+async def delete_collection_handler(message: Message) -> None:
     user_id = message.from_user.id
-    collections = await loop.run_in_executor(executor, db.get_list_collection, user_id)
-    if len(collections) == 0:
-        await message.reply("У вас нет коллекций.", reply_markup=keyboard.collections_menu)
-    else:
-        collection_list = "Выберите коллекцию для удаления:\n"
-        for i, collection in enumerate(collections, start=1):
-            collection_list += f"{i}. {collection[1]}\n"
-        await message.reply(collection_list, reply_markup=keyboard.back_menu)
-        await state.set_state(States.state_del_collection)
+    await message.answer("*Выберите коллекцию для её удаления*\n",
+                         reply_markup=format_collection_list(db.get_list_collection(user_id), 'delete_collection_'),
+                         parse_mode='Markdown')
 
-
-@dp.message(F.text, States.state_del_collection)
-async def delete_collection_number_handler(message: Message, state: FSMContext) -> None:
+# Удаление коллекции
+@dp.callback_query(lambda c: c.data.startswith("delete_collection_"))
+async def delete_collection_number_handler(callback_query: CallbackQuery) -> None:
+    # Запускаем параллельную задачу для режима ожидания
+    loading_task = asyncio.create_task(send_loading_message(callback_query.message.chat.id))
     loop = asyncio.get_running_loop()
-    data = await state.get_data()
-    user_id = message.from_user.id
-    try:
-        collection_number = int(message.text)
-    except ValueError:
-        await message.reply("Неверный формат номера коллекции. Попробуйте ещё раз.", reply_markup=keyboard.back_menu)
-        return
-
-    collections = await loop.run_in_executor(executor, db.get_list_collection, user_id)
-    if 0 < collection_number <= len(collections):
-        collection_id = collections[collection_number - 1][0]
-        await loop.run_in_executor(executor, db.delete_collection,user_id, collection_id)
-        await message.reply("Коллекция успешно удалена.", reply_markup=keyboard.collections_menu)
-    else:
-        await message.reply("Неверный номер коллекции. Попробуйте ещё раз.", reply_markup=keyboard.back_menu)
-
-    await state.clear()
+    # Получаем id коллекции
+    collection_id = (await get_collection_id_and_name(callback_query, loop, 1))[0]
+    await loop.run_in_executor(executor, db.delete_collection,callback_query.from_user.id, collection_id)
+    await callback_query.message.answer("Коллекция успешно удалена.", reply_markup=keyboard.collections_menu)
+    await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+    # Завершаем режим ожидания
+    loading_task.cancel()
 
 
 @dp.message(F.text == "Редактировать")
@@ -630,12 +620,13 @@ async def send_loading_message(chat_id):
     except asyncio.CancelledError:
         await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
 
-# Возвращение в главное меню
+# Возвращение в главное меню для ReplyKeyboard
 @dp.message(F.text == "Назад")
 async def back_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.reply("Вы вернулись в главное меню.", reply_markup=keyboard.main_menu)
 
+# Возвращение в главное меню для InlineKeyboard
 @dp.callback_query(lambda c: c.data == "main_menu")
 async def process_callback(callback_query: CallbackQuery):
     await callback_query.message.answer("Вы вернулись в главное меню.", reply_markup=keyboard.main_menu)

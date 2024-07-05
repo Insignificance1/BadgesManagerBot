@@ -174,8 +174,8 @@ class DataBase:
 
     # Проверка наличия коллекции с выбранными именем у пользователя
     def contains_collection(self, id_user, collection_id):
-        return len(self.exec_query(f"""select id from {schema_name}.collections where id={collection_id} and id_user={id_user} """, "[INFO]Return collection"))
-
+        return len(self.exec_query(f"select id from {schema_name}.collections where id={collection_id} "
+                                   f"and id_user={id_user}", "[INFO] Return collection"))
 
     #по id коллекции заменяет название
     def update_name_collection(self, new_name, id_collection):
