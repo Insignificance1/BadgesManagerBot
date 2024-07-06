@@ -5,6 +5,7 @@ import re
 import zipfile
 from datetime import datetime
 
+from aiogram import types
 from aiogram.filters import CommandStart
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram import F
@@ -56,6 +57,8 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
 
 @dp.message(F.text == "Войти как пользователь", States.manager)
 async def manager_to_user_handler(message: Message) -> None:
+async def manager_to_user_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     main_menu = keyboard.create_main_menu(message.from_user.id)
     await message.answer("Вам доступен функционал пользователя, чтобы вернуться к возможностям менеджера нажмите: "
                          "*Выйти*.",
@@ -64,7 +67,8 @@ async def manager_to_user_handler(message: Message) -> None:
 
 
 @dp.message(F.text == "Войти как менеджер", States.manager)
-async def manager_handler(message: Message) -> None:
+async def manager_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await message.answer("Вам доступен функционал менеджера, чтобы вернуться к возможностям пользователя нажмите: "
                          "*Выйти*.",
                          reply_markup=keyboard.manager_function_menu,
@@ -73,6 +77,7 @@ async def manager_handler(message: Message) -> None:
 
 @dp.message(F.text == "Статистика посещаемости", States.manager)
 async def attendance_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await state.set_state(States.manager)
     await message.answer("Выберите:",
                          reply_markup=keyboard.time_menu,
@@ -81,14 +86,16 @@ async def attendance_handler(message: Message, state: FSMContext) -> None:
 
 @dp.message(F.text == "За период", States.manager)
 async def period_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await remove_keyboard(message)
     await state.set_state(States.input_period_attendance)
-    await message.answer("Введите начальную и конечную дату в формате: Год-Месяц-День : Год-Месяц-День",
+    await message.answer("Введите начальную и конечную дату в формате: _Год-Месяц-День_ : _Год-Месяц-День_",
                          parse_mode='Markdown')
 
 
 @dp.message(F.text == "За все время", States.manager)
 async def all_time_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await message.answer("Статистика посещаемости",
                          reply_markup=keyboard.manager_function_menu,
                          parse_mode='Markdown')
@@ -96,13 +103,16 @@ async def all_time_handler(message: Message, state: FSMContext) -> None:
 
 @dp.message(F.text, States.input_period_attendance)
 async def all_time_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     date = message.text
     date_parts = date.split(" : ")
 
     if len(date_parts) != 2:
         await message.answer(
-            "Ошибка: Неверно указан формат, необходимо отправить период в следующем виде: Год-Месяц-День : "
-            "Год-Месяц-День")
+            "*Ошибка*: Неверно указан формат, необходимо отправить период в следующем виде: _Год-Месяц-День_ : "
+            "_Год-Месяц-День_",
+            reply_markup=keyboard.back_menu,
+            parse_mode='Markdown')
         return
 
     start_date, end_date = date_parts
@@ -110,8 +120,10 @@ async def all_time_handler(message: Message, state: FSMContext) -> None:
     date_pattern = r"^\d{4}-\d{2}-\d{2}$"
     if not re.match(date_pattern, start_date) or not re.match(date_pattern, end_date):
         await message.answer(
-            "Ошибка: Неверно указан формат, необходимо отправить период в следующем виде: Год-Месяц-День : "
-            "Год-Месяц-День")
+            "*Ошибка*: Неверно указан формат, необходимо отправить период в следующем виде: _Год-Месяц-День_ : "
+            "_Год-Месяц-День_",
+            reply_markup=keyboard.back_menu,
+            parse_mode='Markdown')
         return
 
     await message.answer(f"Выбранный период: {start_date} : {end_date}",
@@ -122,6 +134,7 @@ async def all_time_handler(message: Message, state: FSMContext) -> None:
 
 @dp.message(F.text == "Статистика новых пользователей", States.manager)
 async def manager_to_user_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await state.set_state(States.manager_new_user)
     await message.answer("Статистика новых пользователей",
                          reply_markup=keyboard.time_menu,
@@ -130,14 +143,16 @@ async def manager_to_user_handler(message: Message, state: FSMContext) -> None:
 
 @dp.message(F.text == "За период", States.manager_new_user)
 async def period_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await remove_keyboard(message)
     await state.set_state(States.input_period_new_users)
-    await message.answer("Введите начальную и конечную дату в формате: Год-Месяц-День : Год-Месяц-День",
+    await message.answer("Введите начальную и конечную дату в формате: _Год-Месяц-День_ : _Год-Месяц-День_",
                          parse_mode='Markdown')
 
 
 @dp.message(F.text == "За все время", States.manager_new_user)
 async def all_time_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     user_id = message.from_user.id
     d_start_date = datetime(year=2024, month=7, day=1,
                             hour=0, minute=0, second=0)
@@ -152,24 +167,29 @@ async def all_time_handler(message: Message, state: FSMContext) -> None:
 
 @dp.message(F.text, States.input_period_new_users)
 async def all_time_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     date = message.text
     user_id = message.from_user.id
     date_parts = date.split(" : ")
 
     if len(date_parts) != 2:
         await message.answer(
-            "Ошибка: Неверно указан формат, необходимо отправить период в следующем виде: Год-Месяц-День : "
-            "Год-Месяц-День")
+            "Ошибка: Неверно указан формат, необходимо отправить период в следующем виде: _Год-Месяц-День_ : "
+            "_Год-Месяц-День_",
+            reply_markup=keyboard.back_menu,
+            parse_mode='Markdown')
         return
 
     start_date, end_date = date_parts
-
     date_pattern = r"^\d{4}-\d{2}-\d{2}$"
     if not re.match(date_pattern, start_date) or not re.match(date_pattern, end_date):
         await message.answer(
-            "Ошибка: Неверно указан формат, необходимо отправить период в следующем виде: Год-Месяц-День : "
-            "Год-Месяц-День")
+            "*Ошибка*: Неверно указан формат, необходимо отправить период в следующем виде: _Год-Месяц-День_ : "
+            "_Год-Месяц-День_",
+            reply_markup=keyboard.back_menu,
+            parse_mode='Markdown')
         return
+
     start_dates = start_date.split("-")
     end_dates = end_date.split("-")
     d_start_date = datetime(year=int(start_dates[0]), month=int(start_dates[1]), day=int(start_dates[2]),
@@ -177,6 +197,13 @@ async def all_time_handler(message: Message, state: FSMContext) -> None:
     d_end_date = datetime(year=int(end_dates[0]), month=int(end_dates[1]), day=int(end_dates[2]),
                           hour=23, minute=59, second=59)
     list_date = db.get_users_stats(d_start_date, d_end_date)
+    if not list_date:
+        await message.answer(
+            "*Ошибка*: По данному периоду ничего не найдено, введите корректную дату",
+            reply_markup=keyboard.back_menu,
+            parse_mode='Markdown')
+        return
+
     path = await generate_user_statistics(list_date, user_id)
     graphic = FSInputFile(path)
     await bot.send_photo(chat_id=message.chat.id, photo=graphic, reply_markup=keyboard.manager_function_menu)
@@ -187,12 +214,14 @@ async def all_time_handler(message: Message, state: FSMContext) -> None:
 # Выбор действия над коллекциями
 @dp.message(F.text == "Коллекции")
 async def collections_handler(message: Message) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await message.reply("Выберите в меню желаемое действие.", reply_markup=keyboard.collections_menu)
 
 
 # Выбор действия над списком коллекций
 @dp.message(F.text == "Весь список")
 async def all_list_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await message.answer('Выберите желаемое действие над всем списком коллекций.',
                          reply_markup=keyboard.all_collections_menu)
     await state.set_state(States.collections)
@@ -201,6 +230,7 @@ async def all_list_handler(message: Message, state: FSMContext) -> None:
 # Вывод недостающих значки
 @dp.message(F.text == "Вывести недостающие значки")
 async def null_badges_list_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await state.set_state(States.state_null_badges)
     await pdf_collections_handler(message)
 
@@ -208,6 +238,7 @@ async def null_badges_list_handler(message: Message, state: FSMContext) -> None:
 # Выбор действия над избранными коллекциями
 @dp.message(F.text == "Избранное")
 async def favourites_list_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await message.answer('Выберите желаемое действие над избранными коллекциями.',
                          reply_markup=keyboard.favorite_collections_menu)
     await state.set_state(States.favorites)
@@ -216,6 +247,7 @@ async def favourites_list_handler(message: Message, state: FSMContext) -> None:
 # Выбор коллекции для выгрузки в PDF-файл
 @dp.message(F.text == "Выгрузить в PDF", States.collections)
 async def pdf_collections_handler(message: Message) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     user_id = message.from_user.id
     await message.answer("*Выберите коллекцию для выгрузки в PDF*\n",
                          reply_markup=await format_collection_list(db.get_list_collection(user_id), 'pdf_collection_'),
@@ -225,6 +257,7 @@ async def pdf_collections_handler(message: Message) -> None:
 # Выбор избранной коллекции для выгрузки в PDF-файл
 @dp.message(F.text == "Выгрузить в PDF", States.favorites)
 async def pdf_collections_handler(message: Message) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     user_id = message.from_user.id
     await message.answer("*Выберите избранную коллекцию для выгрузки в PDF*\n",
                          reply_markup=await format_collection_list(db.get_list_favorites(user_id), 'pdf_favorite_'),
@@ -234,6 +267,7 @@ async def pdf_collections_handler(message: Message) -> None:
 # Выбор коллекции для выгрузки в PDF-файл нулевых значков
 @dp.message(F.text == "Выгрузить в PDF", States.state_null_badges)
 async def pdf_collections_handler(message: Message) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     user_id = message.from_user.id
     await message.answer("*Выберите коллекцию для выгрузки в PDF*\n",
                          reply_markup=await format_collection_list(db.get_list_collection(user_id), 'pdf_null_'),
@@ -244,8 +278,9 @@ async def pdf_collections_handler(message: Message) -> None:
 @dp.callback_query(lambda c: c.data.startswith("pdf_collection_") or c.data.startswith("pdf_favorite_") or
                              c.data.startswith("pdf_null_"))
 async def send_pdf(callback_query: CallbackQuery):
+    db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
     # Запускаем параллельную задачу для режима ожидания
-    task_manager.create_loading_task(callback_query.message.chat.id, f'task_{callback_query.from_user.id}')
+    loading_task = asyncio.create_task(send_loading_message(callback_query.message.chat.id))
     loop = asyncio.get_running_loop()
     # Получаем id и название коллекции
     type_id = 3
@@ -284,6 +319,7 @@ async def send_pdf(callback_query: CallbackQuery):
 # Выбор коллекции для смены названия
 @dp.message(F.text == "Изменить название", States.collections)
 async def send_name_handler(message: Message) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     user_id = message.from_user.id
     await remove_keyboard(message)
     await message.answer("*Выберите коллекцию для смены её названия*\n",
@@ -294,6 +330,7 @@ async def send_name_handler(message: Message) -> None:
 # Выбор избранной коллекции для смены названия
 @dp.message(F.text == "Изменить название", States.favorites)
 async def send_name_handler(message: Message) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     user_id = message.from_user.id
     await remove_keyboard(message)
     await message.answer("*Выберите избранную коллекцию для смены её названия*\n",
@@ -304,6 +341,7 @@ async def send_name_handler(message: Message) -> None:
 # Ожидание ввода названия коллекции
 @dp.callback_query(lambda c: c.data.startswith("name_collection_") or c.data.startswith("name_favorite_"))
 async def change_name_handler(callback_query: CallbackQuery, state: FSMContext) -> None:
+    db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
     type_id = 2 if callback_query.data.startswith("name_favorite_") else 1
     collection_id, name = await get_collection_id_and_name(callback_query, type_id=type_id)
     await callback_query.message.answer("Просим вас ввести новое название для коллекции",
@@ -318,8 +356,9 @@ async def change_name_handler(callback_query: CallbackQuery, state: FSMContext) 
 @dp.message(F.text, States.waiting_for_name_collection)
 @dp.message(F.text, States.waiting_for_name_favorite)
 async def new_name_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     # Запускаем параллельную задачу для режима ожидания
-    task_manager.create_loading_task(message.chat.id, f'task_{message.from_user.id}')
+    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
     loop = asyncio.get_running_loop()
     new_name = message.text
     data = await state.get_data()
@@ -337,15 +376,16 @@ async def new_name_handler(message: Message, state: FSMContext) -> None:
             await state.set_state(States.favorites)
         await send_name_handler(message)
         await message.answer(str(e))
-        task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
+        loading_task.cancel()
     await state.clear()
     # Завершаем режим ожидания
-    task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
+    loading_task.cancel()
 
 
 # Просмотр коллекции
 @dp.message(F.text == "Посмотреть коллекцию")
 async def show_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     user_id = message.from_user.id
     await remove_keyboard(message)
     await message.reply(
@@ -357,6 +397,7 @@ async def show_handler(message: Message, state: FSMContext) -> None:
 # Просмотр избранной коллекции
 @dp.message(F.text == "Посмотреть избранное")
 async def show_handler(message: Message) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     user_id = message.from_user.id
     await remove_keyboard(message)
     await message.reply(
@@ -367,6 +408,7 @@ async def show_handler(message: Message) -> None:
 # Выбор коллекции для добавления в избранное
 @dp.message(F.text == "Добавить в избранное")
 async def add_favorites_list_handler(message: Message) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     user_id = message.from_user.id
     await message.reply(
         "*Выберите коллекцию для добавления в избранное*\n", reply_markup=await format_collection_list(
@@ -377,6 +419,7 @@ async def add_favorites_list_handler(message: Message) -> None:
 # Выбор коллекции для удаления из избранного
 @dp.message(F.text == "Удалить из избранного")
 async def del_favorites_list_handler(message: Message) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     user_id = message.from_user.id
     await message.reply(
         "*Выберите коллекцию для удаления из избранного*\n", reply_markup=await format_collection_list(
@@ -387,6 +430,7 @@ async def del_favorites_list_handler(message: Message) -> None:
 # Изменение флага избранности для выбранной коллекции
 @dp.callback_query(lambda c: c.data.startswith("add_favorite_") or c.data.startswith("delete_favorite_"))
 async def edit_favorite_handler(callback_query: CallbackQuery) -> None:
+    db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
     # Запускаем параллельную задачу для режима ожидания
     task_manager.create_loading_task(callback_query.message.chat.id, f'task_{callback_query.from_user.id}')
     loop = asyncio.get_running_loop()
@@ -409,6 +453,7 @@ async def edit_favorite_handler(callback_query: CallbackQuery) -> None:
 # Выбор коллекции для пополнения
 @dp.message(F.text == "Пополнить коллекцию")
 async def add_handler(message: Message) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     user_id = message.from_user.id
     await message.reply(
         "*Выберите коллекцию для её пополнения*\n", reply_markup=await format_collection_list(
@@ -419,6 +464,7 @@ async def add_handler(message: Message) -> None:
 # Ожидание архива с изображениями для пополнения коллекции
 @dp.callback_query(lambda c: c.data.startswith("add_badges_"))
 async def add_badges_handler(callback_query: CallbackQuery, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     collection_id, name = await get_collection_id_and_name(callback_query, type_id=1)
     await callback_query.message.answer("Отправьте ZIP-файл с изображениями.", reply_markup=keyboard.back_menu)
     await state.update_data(collection_id=collection_id, collection_name=name)
@@ -429,6 +475,7 @@ async def add_badges_handler(callback_query: CallbackQuery, state: FSMContext) -
 # Пополнение коллекции
 @dp.message(F.document, States.waiting_for_zip_add)
 async def get_zip_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await message.reply("Файл получен.", reply_markup=keyboard.back_menu)
     # Запускаем параллельную задачу для режима ожидания
     task_manager.create_loading_task(message.chat.id, f'task_{message.from_user.id}')
@@ -450,8 +497,6 @@ async def get_zip_handler(message: Message, state: FSMContext) -> None:
     except Exception as e:
         await message.reply(f"Ошибка при пополнении коллекции: {e}", reply_markup=main_menu)
         await task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
-        await message.reply(f"Ошибка при пополнении коллекции: {e}", reply_markup=main_menu)
-        task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
 
     await state.clear()
     await state.set_state(States.manager)
@@ -460,6 +505,7 @@ async def get_zip_handler(message: Message, state: FSMContext) -> None:
 # Ожидание архива с изображениями при создании коллекции
 @dp.message(F.text == "Добавить коллекцию")
 async def add_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await message.reply("Отправьте ZIP-файл с изображениями.", reply_markup=keyboard.back_menu)
     await state.set_state(States.waiting_for_zip_create)
 
@@ -467,6 +513,7 @@ async def add_handler(message: Message, state: FSMContext) -> None:
 # Ожидание ввода названия новой коллекции
 @dp.message(F.document, States.waiting_for_zip_create)
 async def get_zip_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await state.update_data(zip_file_id=message.document.file_id)
     await message.reply("Файл получен. Введите название новой коллекции.", reply_markup=keyboard.back_menu)
     await state.set_state(States.add_new_collection_zip_name)
@@ -475,6 +522,7 @@ async def get_zip_handler(message: Message, state: FSMContext) -> None:
 # Создание коллекции
 @dp.message(F.text, States.add_new_collection_zip_name)
 async def create_collection_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     # Запускаем параллельную задачу для режима ожидания
     task_manager.create_loading_task(message.chat.id, f'task_{message.from_user.id}')
     data = await state.get_data()
@@ -544,6 +592,7 @@ async def process_zip_file(zip_file_id, collection_id, user_id, reply_func):
 # Выбор коллекции для удаления
 @dp.message(F.text == "Удалить коллекцию")
 async def delete_collection_handler(message: Message) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     user_id = message.from_user.id
     await message.answer("*Выберите коллекцию для её удаления*\n",
                          reply_markup=await format_collection_list(db.get_list_collection(user_id),
@@ -554,6 +603,7 @@ async def delete_collection_handler(message: Message) -> None:
 # Удаление коллекции
 @dp.callback_query(lambda c: c.data.startswith("delete_collection_"))
 async def delete_collection_number_handler(callback_query: CallbackQuery) -> None:
+    db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
     # Запускаем параллельную задачу для режима ожидания
     task_manager.create_loading_task(callback_query.message.chat.id, f'task_{callback_query.from_user.id}')
     loop = asyncio.get_running_loop()
@@ -630,6 +680,7 @@ async def format_image_list(collections, prefix):
 # Вывод инструкции
 @dp.message(F.text == "Инструкция")
 async def instruction_handler(message: Message) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     instruction = (
         "*Рекомендации по улучшению качества нарезки:*\n"
         "1. Сделайте фотографию в высоком разрешении.\n"
@@ -648,6 +699,7 @@ async def instruction_handler(message: Message) -> None:
 # Обращение к ТП
 @dp.message(F.text == "Обратиться к ТП")
 async def support_handler(message: Message) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     answer = (
         "Если у вас есть какие-то вопросы, вы можете обратиться к:\n\n"
         "@insignificance123\n"
@@ -677,6 +729,7 @@ async def send_loading_message(chat_id):
 
 @dp.message(F.text == "Назад", States.manager)
 async def back_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await state.clear()
     await state.set_state(States.manager)
     await message.reply("Вы вернулись в главное меню.", reply_markup=keyboard.manager_function_menu)
@@ -685,6 +738,7 @@ async def back_handler(message: Message, state: FSMContext) -> None:
 # Возвращение в главное меню для ReplyKeyboard
 @dp.message(F.text == "Назад")
 async def back_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await state.clear()
     main_menu = keyboard.create_main_menu(message.from_user.id)
     await message.reply("Вы вернулись в главное меню.", reply_markup=main_menu)
@@ -692,6 +746,7 @@ async def back_handler(message: Message, state: FSMContext) -> None:
 
 @dp.message(F.text == "Выход")
 async def back_handler(message: Message, state: FSMContext) -> None:
+    db.log_user_activity(message.from_user.id, message.message_id)
     await state.clear()
     await state.set_state(States.manager)
     await message.reply("Вы вернулись в главное меню.", reply_markup=keyboard.manager_menu)

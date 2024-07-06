@@ -55,6 +55,11 @@ class DataBase:
                                           values ('{id}', '{role}')""",
                         "[INFO] User was added", True)
 
+    def log_user_activity(self, user_id, message_id):
+        self.exec_query(f"""insert into {schema_name}.user_activity (id, message_id)
+                                          values ('{id}', '{message_id}')""",
+                        "[INFO] User was added", True)
+
     def get_role(self, id):
         return self.exec_query(
             f"""select role from {schema_name}.users where id={id}""",
