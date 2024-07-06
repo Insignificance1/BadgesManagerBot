@@ -847,11 +847,27 @@ async def back_handler(message: Message, state: FSMContext) -> None:
 # Возвращение в главное меню для InlineKeyboard
 @dp.callback_query(lambda c: c.data == "main_menu")
 async def process_callback(callback_query: CallbackQuery) -> None:
-    await callback_query.message.answer("Вы вернулись в главное меню.", reply_markup=keyboard.main_menu)
+    main_menu = keyboard.create_main_menu(callback_query.from_user.id)
+    await callback_query.message.answer("Вы вернулись в главное меню.", reply_markup=main_menu)
     await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
 
 
 async def main() -> None:
+    directories = [
+        "../Photo/cut",
+        "../Photo/noBg",
+        "../Photo/original",
+        "../Photo/ZIP/documents",
+        "../Photo/statistic",
+        "../Photo/PDF"
+    ]
+
+    for directory in directories:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+            print(f"Создана папка: {directory}")
+        else:
+            print(f"Папка уже существует: {directory}")
     # Начало опроса обновлений
     await dp.start_polling(bot)
 

@@ -87,7 +87,8 @@ def register_image_handlers(dp: Dispatcher):
                 await handle_successful_name_update(message, state, data['cq_id'], data['user'], data['chat_ins'],
                                                     data['cq_mes'], new_name, mes_to_del)
             except Exception as e:
-                await message.reply(str(e), reply_markup=kb.main_menu)
+                main_menu = kb.create_main_menu(message.from_user.id)
+                await message.reply(str(e), reply_markup=main_menu)
                 await handle_successful_name_update(message, state, data['cq_id'], data['user'], data['chat_ins'],
                                                     data['cq_mes'], new_name, mes_to_del)
         else:
@@ -125,7 +126,8 @@ def register_image_handlers(dp: Dispatcher):
                     await handle_successful_count_update(message, state, data['cq_id'], data['user'], data['chat_ins'],
                                                          data['cq_mes'], new_count, mes_to_del)
                 except Exception as e:
-                    await message.reply(str(e), reply_markup=kb.main_menu)
+                    main_menu = kb.create_main_menu(message.from_user.id)
+                    await message.reply(str(e), reply_markup=main_menu)
                     await handle_successful_count_update(message, state, data['cq_id'], data['user'], data['chat_ins'],
                                                          data['cq_mes'], new_count, mes_to_del)
             else:
