@@ -68,8 +68,9 @@ async def handle_exit_action(callback_query):
     """
     Выход
     """
+    main_menu = kb.create_main_menu(callback_query.from_user.id)
     await bot.send_message(chat_id=callback_query.message.chat.id, text="Вы вернулись в главное меню.",
-                           reply_markup=kb.main_menu)
+                           reply_markup=main_menu)
     await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
     await callback_query.answer()
 

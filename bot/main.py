@@ -1,31 +1,37 @@
 import logging
 import asyncio
 import os
+import re
 import zipfile
+from datetime import datetime
 
 from aiogram import types
 from aiogram.filters import CommandStart
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram import F
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import FSInputFile
 from aiogram.exceptions import TelegramBadRequest
 from numpy.compat import long
 
 from bot.settings import keyboard
+from bot.settings import states
 from bot.settings.states import States
 from model.convert import Converter
 from model.segment import rotate_image
 from bot.settings.keyboard import create_rotate_keyboard, remove_keyboard
 from services.other_service import get_collection_id_and_name
+from services.statistics_service import generate_user_statistics
+from handlers.image_handler import register_image_handlers
 from bot.settings.variables import bot, dp, segmenter, db, executor
 
 from handlers.image_handler import register_image_handlers
 from handlers.instruction_handler import register_instruction_handlers
 
+
 register_image_handlers(dp)
 register_instruction_handlers(dp)
-
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -33,15 +39,151 @@ logging.basicConfig(level=logging.INFO)
 
 # Знакомство с пользователем
 @dp.message(CommandStart())
-async def command_start_handler(message: Message) -> None:
+async def command_start_handler(message: Message, state: FSMContext) -> None:
     # Добавляем пользователя в БД
     user_id: long = message.from_user.id
     user_full_name = message.from_user.full_name
-    db.add_user(user_id)
-    # Логируем взаимодействие с пользователем
     logging.info(f'{user_id=} {user_full_name=}')
-    await message.answer(f"Привет, {user_full_name}! Я бот для работы с коллекционными значками.",
-                         reply_markup=keyboard.main_menu)
+    db.add_user(user_id)
+    role = db.get_role(user_id)
+    if role[0] == 'manager':
+        await state.set_state(States.manager)
+        await message.answer(f"Привет, Менеджер {user_full_name}! Я бот для работы с коллекционными значками.",
+                             reply_markup=keyboard.manager_menu)
+    else:
+        main_menu = keyboard.create_main_menu(message.from_user.id)
+        await message.answer(f"Привет, {user_full_name}! Я бот для работы с коллекционными значками.",
+                             reply_markup=main_menu)
+
+
+@dp.message(F.text == "Войти как пользователь", States.manager)
+async def manager_to_user_handler(message: Message, state: FSMContext) -> None:
+    main_menu = keyboard.create_main_menu(message.from_user.id)
+    await message.answer("Вам доступен функционал пользователя, чтобы вернуться к возможностям менеджера нажмите: "
+                         "*Выйти*.",
+                         reply_markup=main_menu,
+                         parse_mode='Markdown')
+
+
+@dp.message(F.text == "Войти как менеджер", States.manager)
+async def manager_handler(message: Message, state: FSMContext) -> None:
+    await message.answer("Вам доступен функционал менеджера, чтобы вернуться к возможностям пользователя нажмите: "
+                         "*Выйти*.",
+                         reply_markup=keyboard.manager_function_menu,
+                         parse_mode='Markdown')
+
+
+@dp.message(F.text == "Статистика посещаемости", States.manager)
+async def attendance_handler(message: Message, state: FSMContext) -> None:
+    await state.set_state(States.manager)
+    await message.answer("Выберите:",
+                         reply_markup=keyboard.time_menu,
+                         parse_mode='Markdown')
+
+
+@dp.message(F.text == "За период", States.manager)
+async def period_handler(message: Message, state: FSMContext) -> None:
+    await remove_keyboard(message)
+    await state.set_state(States.input_period_attendance)
+    await message.answer("Введите начальную и конечную дату в формате: Год-Месяц-День : Год-Месяц-День",
+                         parse_mode='Markdown')
+
+
+@dp.message(F.text == "За все время", States.manager)
+async def all_time_handler(message: Message, state: FSMContext) -> None:
+    await message.answer("Статистика посещаемости",
+                         reply_markup=keyboard.manager_function_menu,
+                         parse_mode='Markdown')
+
+
+@dp.message(F.text, States.input_period_attendance)
+async def all_time_handler(message: Message, state: FSMContext) -> None:
+    date = message.text
+    date_parts = date.split(" : ")
+
+    if len(date_parts) != 2:
+        await message.answer(
+            "Ошибка: Неверно указан формат, необходимо отправить период в следующем виде: Год-Месяц-День : "
+            "Год-Месяц-День")
+        return
+
+    start_date, end_date = date_parts
+
+    date_pattern = r"^\d{4}-\d{2}-\d{2}$"
+    if not re.match(date_pattern, start_date) or not re.match(date_pattern, end_date):
+        await message.answer(
+            "Ошибка: Неверно указан формат, необходимо отправить период в следующем виде: Год-Месяц-День : "
+            "Год-Месяц-День")
+        return
+
+    await message.answer(f"Выбранный период: {start_date} : {end_date}",
+                         reply_markup=keyboard.manager_function_menu,
+                         parse_mode='Markdown')
+    await state.clear()
+
+
+@dp.message(F.text == "Статистика новых пользователей", States.manager)
+async def manager_to_user_handler(message: Message, state: FSMContext) -> None:
+    await state.set_state(States.manager_new_user)
+    await message.answer("Статистика новых пользователей",
+                         reply_markup=keyboard.time_menu,
+                         parse_mode='Markdown')
+
+
+@dp.message(F.text == "За период", States.manager_new_user)
+async def period_handler(message: Message, state: FSMContext) -> None:
+    await remove_keyboard(message)
+    await state.set_state(States.input_period_new_users)
+    await message.answer("Введите начальную и конечную дату в формате: Год-Месяц-День : Год-Месяц-День",
+                         parse_mode='Markdown')
+
+
+@dp.message(F.text == "За все время", States.manager_new_user)
+async def all_time_handler(message: Message, state: FSMContext) -> None:
+    user_id = message.from_user.id
+    d_start_date = datetime(year=2024, month=7, day=1,
+                            hour=0, minute=0, second=0)
+    d_end_date = datetime.now()
+    list_date = db.get_users_stats(d_start_date, d_end_date)
+    path = await generate_user_statistics(list_date, user_id)
+    graphic = FSInputFile(path)
+    await bot.send_photo(chat_id=message.chat.id, photo=graphic, reply_markup=keyboard.manager_function_menu)
+    await state.clear()
+    await state.set_state(States.manager)
+
+
+@dp.message(F.text, States.input_period_new_users)
+async def all_time_handler(message: Message, state: FSMContext) -> None:
+    date = message.text
+    user_id = message.from_user.id
+    date_parts = date.split(" : ")
+
+    if len(date_parts) != 2:
+        await message.answer(
+            "Ошибка: Неверно указан формат, необходимо отправить период в следующем виде: Год-Месяц-День : "
+            "Год-Месяц-День")
+        return
+
+    start_date, end_date = date_parts
+
+    date_pattern = r"^\d{4}-\d{2}-\d{2}$"
+    if not re.match(date_pattern, start_date) or not re.match(date_pattern, end_date):
+        await message.answer(
+            "Ошибка: Неверно указан формат, необходимо отправить период в следующем виде: Год-Месяц-День : "
+            "Год-Месяц-День")
+        return
+    start_dates = start_date.split("-")
+    end_dates = end_date.split("-")
+    d_start_date = datetime(year=int(start_dates[0]), month=int(start_dates[1]), day=int(start_dates[2]),
+                            hour=0, minute=0, second=0)
+    d_end_date = datetime(year=int(end_dates[0]), month=int(end_dates[1]), day=int(end_dates[2]),
+                          hour=23, minute=59, second=59)
+    list_date = db.get_users_stats(d_start_date, d_end_date)
+    path = await generate_user_statistics(list_date, user_id)
+    graphic = FSInputFile(path)
+    await bot.send_photo(chat_id=message.chat.id, photo=graphic, reply_markup=keyboard.manager_function_menu)
+    await state.clear()
+    await state.set_state(States.manager)
 
 
 # Ожидание отправки фото
@@ -129,9 +271,9 @@ async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext
     photo_id = data.get('photo_id')
     edit_idx = data.get('edit_idx')
     num_objects = data.get('num_objects')
+    user_id = data.get('user_id')
     action = callback_query.data.split('_')[-1]
     angle = 0
-
     if action == 'left':
         edit_idx = max(edit_idx - 1, 0)
     elif action == 'right':
@@ -143,8 +285,9 @@ async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext
         await callback_query.answer()
         return
     elif action == 'exit':
+        main_menu = keyboard.create_main_menu(user_id)
         await bot.send_message(chat_id=callback_query.message.chat.id, text="Вы вернулись в главное меню.",
-                               reply_markup=keyboard.main_menu)
+                               reply_markup=main_menu)
         await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
         await callback_query.answer()
         return
@@ -175,7 +318,6 @@ async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext
 # Продолжение после получения значков после нарезки
 @dp.message(F.text == "Продолжить", States.align_function_photo)
 async def continue_handler(message: Message) -> None:
-    await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
     await message.answer("Коллекция полная?", reply_markup=keyboard.yes_no_menu)
 
 
@@ -193,6 +335,7 @@ async def create_after_yes_handler(message: Message, state: FSMContext) -> None:
     loading_task = asyncio.create_task(send_loading_message(message.chat.id))
     data = await state.get_data()
     loop = asyncio.get_running_loop()
+    main_menu = keyboard.create_main_menu(message.from_user.id)
     try:
         # Добавляем коллекцию
         result = await loop.run_in_executor(executor, db.add_collection, message.from_user.id, message.text)
@@ -203,12 +346,12 @@ async def create_after_yes_handler(message: Message, state: FSMContext) -> None:
         for idx in range(num_objects):
             img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
             await loop.run_in_executor(executor, db.insert_image, message.from_user.id, img_path, id_collection)
-        await message.reply(reply, reply_markup=keyboard.main_menu)
+        await message.reply(reply, reply_markup=main_menu)
         # Завершаем режим ожидания
         loading_task.cancel()
     # Обрабатываем ошибки из других методов
     except Exception as e:
-        await message.reply(str(e), reply_markup=keyboard.main_menu)
+        await message.reply(str(e), reply_markup=main_menu)
         await yes_handler(message, state)
         loading_task.cancel()
     await state.clear()
@@ -228,7 +371,8 @@ async def no_handler(message: Message, state: FSMContext) -> None:
     await loop.run_in_executor(executor, converter.convert_to_zip, photo_id, num_objects, zip_path)
     # Отправляем архив
     zip_file = FSInputFile(zip_path)
-    await message.reply("В таком случае держите архив с размеченными значками.", reply_markup=keyboard.main_menu)
+    main_menu = keyboard.create_main_menu(message.from_user.id)
+    await message.reply("В таком случае держите архив с размеченными значками.", reply_markup=main_menu)
     await bot.send_document(chat_id=message.chat.id, document=zip_file)
     # Завершаем режим ожидания
     loading_task.cancel()
@@ -488,22 +632,23 @@ async def get_zip_handler(message: Message, state: FSMContext) -> None:
     collection_id = data.get('collection_id')
     collection_name = data.get('collection_name')
     zip_file_id = message.document.file_id
-
+    main_menu = keyboard.create_main_menu(message.from_user.id)
     try:
         await process_zip_file(
             zip_file_id=zip_file_id,
             collection_id=collection_id,
             user_id=message.from_user.id,
             reply_func=lambda: message.reply(f"Коллекция '{collection_name}' успешно пополнена.",
-                                             reply_markup=keyboard.main_menu)
+                                             reply_markup=main_menu)
         )
         # Завершаем режим ожидания
         loading_task.cancel()
     except Exception as e:
-        await message.reply(f"Ошибка при пополнении коллекции: {e}", reply_markup=keyboard.main_menu)
+        await message.reply(f"Ошибка при пополнении коллекции: {e}", reply_markup=main_menu)
         loading_task.cancel()
 
     await state.clear()
+    await state.set_state(States.manager)
 
 
 # Ожидание архива с изображениями при создании коллекции
@@ -541,19 +686,19 @@ async def create_collection_handler(message: Message, state: FSMContext) -> None
             collection_name = await dp.throttle("collection_name", rate=1)(
                 dp.message(F.text, States.add_new_collection_zip_name))
             continue
-
+    main_menu = keyboard.create_main_menu(message.from_user.id)
     try:
         await process_zip_file(
             zip_file_id=zip_file_id,
             collection_id=collection_id,
             user_id=message.from_user.id,
             reply_func=lambda: message.reply(f"Коллекция '{collection_name}' успешно создана.",
-                                             reply_markup=keyboard.main_menu)
+                                             reply_markup=main_menu)
         )
         # Завершаем режим ожидания
         loading_task.cancel()
     except Exception as e:
-        await message.reply(f"Ошибка при создании коллекции: {e}", reply_markup=keyboard.main_menu)
+        await message.reply(f"Ошибка при создании коллекции: {e}", reply_markup=main_menu)
         loading_task.cancel()
 
     await state.clear()
@@ -627,6 +772,38 @@ async def format_collection_list(collections, prefix):
     return InlineKeyboardMarkup(inline_keyboard=new_keyboard)
 
 
+# Вывод инструкции
+@dp.message(F.text == "Инструкция")
+async def instruction_handler(message: Message) -> None:
+    instruction = (
+        "*Рекомендации по улучшению качества нарезки:*\n"
+        "1. Сделайте фотографию в высоком разрешении.\n"
+        "2. Обеспечьте хорошее освещение.\n"
+        "3. Используйте контрастный фон для фотографирования значков.\n"
+        "4. Значки должны располагаться на достаточном расстоянии друг от друга.\n\n"
+        "*Ограничения:*\n"
+        "1. Один пользователь может иметь не более 100 коллекций.\n"
+        "2. Одна коллекция может содержать не более 200 фотографий.\n"
+        "3. Название коллекции должно содержать от 3 до 55 символов.\n"
+        "4. Название значка должно содержать от 3 до 30 символов."
+    )
+    await message.answer(instruction, reply_markup=keyboard.instruction_menu, parse_mode='Markdown')
+
+
+# Обращение к ТП
+@dp.message(F.text == "Обратиться к ТП")
+async def support_handler(message: Message) -> None:
+    answer = (
+        "Если у вас есть какие-то вопросы, вы можете обратиться к:\n\n"
+        "@insignificance123\n"
+        "@Mihter_2208\n"
+        "@KatyaPark11\n"
+        "@sech14"
+    )
+    main_menu = keyboard.create_main_menu(message.from_user.id)
+    await message.answer(answer, reply_markup=main_menu),
+
+
 # Режим ожидания
 async def send_loading_message(chat_id):
     message = await bot.send_message(chat_id, "Ожидайте, бот думает")
@@ -643,21 +820,58 @@ async def send_loading_message(chat_id):
         await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
 
 
+# Удаление клавиатуры
+async def remove_keyboard(message: Message) -> None:
+    await message.answer("ㅤ", reply_markup=ReplyKeyboardRemove())
+    await bot.delete_message(message.chat.id, message.message_id + 1)
+
+
+@dp.message(F.text == "Назад", States.manager)
+async def back_handler(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await state.set_state(States.manager)
+    await message.reply("Вы вернулись в главное меню.", reply_markup=keyboard.manager_function_menu)
+
+
 # Возвращение в главное меню для ReplyKeyboard
 @dp.message(F.text == "Назад")
 async def back_handler(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.reply("Вы вернулись в главное меню.", reply_markup=keyboard.main_menu)
+    main_menu = keyboard.create_main_menu(message.from_user.id)
+    await message.reply("Вы вернулись в главное меню.", reply_markup=main_menu)
+
+
+@dp.message(F.text == "Выход")
+async def back_handler(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await state.set_state(States.manager)
+    await message.reply("Вы вернулись в главное меню.", reply_markup=keyboard.manager_menu)
 
 
 # Возвращение в главное меню для InlineKeyboard
 @dp.callback_query(lambda c: c.data == "main_menu")
 async def process_callback(callback_query: CallbackQuery) -> None:
-    await callback_query.message.answer("Вы вернулись в главное меню.", reply_markup=keyboard.main_menu)
+    main_menu = keyboard.create_main_menu(callback_query.from_user.id)
+    await callback_query.message.answer("Вы вернулись в главное меню.", reply_markup=main_menu)
     await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
 
 
 async def main() -> None:
+    directories = [
+        "../Photo/cut",
+        "../Photo/noBg",
+        "../Photo/original",
+        "../Photo/ZIP/documents",
+        "../Photo/statistic",
+        "../Photo/PDF"
+    ]
+
+    for directory in directories:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+            print(f"Создана папка: {directory}")
+        else:
+            print(f"Папка уже существует: {directory}")
     # Начало опроса обновлений
     await dp.start_polling(bot)
 

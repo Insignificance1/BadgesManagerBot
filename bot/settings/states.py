@@ -3,13 +3,17 @@ from aiogram.fsm.state import State, StatesGroup
 
 # Состояния FSM
 class States(StatesGroup):
+    manager = State()  # Состояние для разделения функций менеджера от пользователя
+    input_period_attendance = State()  # Состояние ожидание ввода периода от менеджера
+    input_period_new_users = State()  # Состояние ожидание ввода периода от менеджера
+    manager_new_user = State()  # Состояние ожидания просмотра новых пользователей
     waiting_for_zip_create = State()  # Состояние ожидания ZIP-файла при создании коллекции
     waiting_for_zip_add = State()  # Состояние ожидания ZIP-файла при пополнении коллекции
     waiting_for_photo = State()  # Ожидание фото для разметки
     choose_function_photo = State()  # Ожидание выбора функции обработки фото
     align_function_photo = State()  # Ожидание выравнивание значков
     change_collection_name = State()  # Ожидание ввода названия коллекции
-    add_new_collection_zip_name = State()  # Ожидание создание новой колекции из ZIP файла с именем
+    add_new_collection_zip_name = State()  # Ожидание создание новой коллекции из ZIP файла с именем
     add_badge = State()  # Ожидание фото значка в модуле редактирования
     collections = State()  # Состояние для выгрузки PDF файла из всего списка
     favorites = State()  # Состояние для выгрузки PDF файла из избранного
@@ -30,5 +34,5 @@ class States(StatesGroup):
 
 # Состояния при редактировании изображений
 class ImageStates(StatesGroup):
-    waiting_for_image_name = State()    # Ожидание ввода названия изображения
-    waiting_for_image_count = State()   # Ожидание ввода количества
+    waiting_for_image_name = State()  # Ожидание ввода названия изображения
+    waiting_for_image_count = State()  # Ожидание ввода количества

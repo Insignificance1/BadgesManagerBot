@@ -1,19 +1,33 @@
 from aiogram.types import (ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup,
                            InlineKeyboardButton, Message)
 
-from bot.settings.variables import bot
+from bot.settings.variables import bot, db
+
 
 # Основная клавиатура
-main_menu = ReplyKeyboardMarkup(
-    keyboard=[
+def create_main_menu(user_id):
+    # Получаем роль пользователя
+    role = db.get_role(user_id)
+    print(role)
+
+    # Создаем основное меню
+    keyboard = [
         [
             KeyboardButton(text="Отправить фото"),
             KeyboardButton(text="Коллекции")
         ],
         [KeyboardButton(text="Инструкция")]
-    ],
-    resize_keyboard=True
-)
+    ]
+
+    # Если роль пользователя manager, добавляем кнопку "Выход"
+    if role[0] == "manager":
+        keyboard.append([KeyboardButton(text="Выход")])
+
+    # Создаем клавиатуру с учетом размера кнопок
+    main_menu = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+
+    return main_menu
+
 
 # Клавитура с функциями обработки фото
 function_menu = ReplyKeyboardMarkup(
@@ -122,6 +136,34 @@ align_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+# Клавиатура менеджера
+manager_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Войти как пользователь")],
+        [KeyboardButton(text="Войти как менеджер")],
+    ],
+    resize_keyboard=True
+)
+
+# Меню функций менеджера
+manager_function_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Статистика посещаемости")],
+        [KeyboardButton(text="Статистика новых пользователей")],
+        [KeyboardButton(text="Выход")],
+    ],
+    resize_keyboard=True
+)
+
+time_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="За период")],
+        [KeyboardButton(text="За все время")],
+        [KeyboardButton(text="Назад")]
+    ],
+    resize_keyboard=True
+)
+
 # Клавиатура после перехода в выравнивание
 function3_menu = ReplyKeyboardMarkup(
     keyboard=[
@@ -214,11 +256,3 @@ def create_rotate_keyboard(idx, num_objects):
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons, row_width=1)
     return keyboard
-
-
-async def remove_keyboard(message: Message) -> None:
-    """
-    Удаление клавиатуры
-    """
-    await message.answer("ㅤ", reply_markup=ReplyKeyboardRemove())
-    await bot.delete_message(message.chat.id, message.message_id + 1)
