@@ -1,10 +1,6 @@
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 
-from database.db import DataBase
-
-db = DataBase()
-executor = ThreadPoolExecutor()
+from bot.settings.variables import db, executor
 
 
 async def get_collection_id_and_name(callback_query, loop=None, type_id=1):

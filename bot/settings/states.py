@@ -9,9 +9,6 @@ class States(StatesGroup):
     manager_new_user = State()  # Состояние ожидания просмотра новых пользователей
     waiting_for_zip_create = State()  # Состояние ожидания ZIP-файла при создании коллекции
     waiting_for_zip_add = State()  # Состояние ожидания ZIP-файла при пополнении коллекции
-    waiting_for_photo = State()  # Ожидание фото для разметки
-    choose_function_photo = State()  # Ожидание выбора функции обработки фото
-    align_function_photo = State()  # Ожидание выравнивание значков
     change_collection_name = State()  # Ожидание ввода названия коллекции
     add_new_collection_zip_name = State()  # Ожидание создание новой коллекции из ZIP файла с именем
     add_badge = State()  # Ожидание фото значка в модуле редактирования
@@ -26,13 +23,24 @@ class States(StatesGroup):
     waiting_for_new_name = State()  # Ожидает задания имени
     state_back = State()  # Ждёт кнопки назад
     state_del_collection = State()  # Состояние ожидания удаления коллекции
-    all_collection_create = State()
     align_state = State()
     waiting_for_name_collection = State()
     waiting_for_name_favorite = State()
 
 
-# Состояния при редактировании изображений
 class ImageStates(StatesGroup):
-    waiting_for_image_name = State()  # Ожидание ввода названия изображения
-    waiting_for_image_count = State()  # Ожидание ввода количества
+    """
+    Состояния при редактировании изображений
+    """
+    waiting_for_image_name = State()    # Ожидание ввода названия изображения
+    waiting_for_image_count = State()   # Ожидание ввода количества
+
+
+class PhotoStates(StatesGroup):
+    """
+    Состояния при отправке и обработке фото
+    """
+    waiting_for_photo = State()         # Ожидание фото для разметки
+    choose_function_photo = State()     # Ожидание выбора функции обработки фото
+    align_function_photo = State()      # Ожидание необходимости выравнивания значков
+    all_collection_create = State()     # Ожидание ввода названия коллекции после нарезки

@@ -1,34 +1,11 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from bot.settings.variables import db
+from aiogram.types import (ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup,
+                           InlineKeyboardButton, Message)
 
-
-# Основная клавиатура
-def create_main_menu(user_id):
-    # Получаем роль пользователя
-    role = db.get_role(user_id)
-    print(role)
-
-    # Создаем основное меню
-    keyboard = [
-        [
-            KeyboardButton(text="Отправить фото"),
-            KeyboardButton(text="Коллекции")
-        ],
-        [KeyboardButton(text="Инструкция")]
-    ]
-
-    # Если роль пользователя manager, добавляем кнопку "Выход"
-    if role[0] == "manager":
-        keyboard.append([KeyboardButton(text="Выход")])
-
-    # Создаем клавиатуру с учетом размера кнопок
-    main_menu = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-
-    return main_menu
+from bot.settings.variables import bot, db
 
 
 # Клавитура с функциями обработки фото
-function_menu = ReplyKeyboardMarkup(
+function_photo_menu = ReplyKeyboardMarkup(
     keyboard=[
         [
             KeyboardButton(text="Посчитать количество"),
@@ -38,6 +15,27 @@ function_menu = ReplyKeyboardMarkup(
     ],
     resize_keyboard=True
 )
+
+# Промежуточная клавиатура между нарезкой фоток и отправкой их
+align_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Выровнять")],
+        [KeyboardButton(text="Продолжить")],
+        [KeyboardButton(text="Назад")]
+    ],
+    resize_keyboard=True
+)
+
+# Клавиатура после перехода в выравнивание
+function3_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Редактировать")],
+        [KeyboardButton(text="Продолжить")],
+        [KeyboardButton(text="Назад")]
+    ],
+    resize_keyboard=True
+)
+
 
 # Клавиатура ответа на вопрос о полноте коллекции после нарезки
 yes_no_menu = ReplyKeyboardMarkup(
@@ -124,16 +122,7 @@ back_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Промежуточная клавиатура между нарезкой фоток и отправкой их
-align_menu = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="Выровнять")],
-        [KeyboardButton(text="Продолжить")],
-        [KeyboardButton(text="Назад")]
-    ],
-    resize_keyboard=True
-)
-
+# Клавиатура менеджера
 manager_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Войти как пользователь")],
@@ -142,6 +131,7 @@ manager_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+# Меню функций менеджера
 manager_function_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Статистика посещаемости")],
@@ -155,16 +145,6 @@ time_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="За период")],
         [KeyboardButton(text="За все время")],
-        [KeyboardButton(text="Назад")]
-    ],
-    resize_keyboard=True
-)
-
-# Клавиатура после перехода в выравнивание
-function3_menu = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="Редактировать")],
-        [KeyboardButton(text="Продолжить")],
         [KeyboardButton(text="Назад")]
     ],
     resize_keyboard=True
@@ -203,13 +183,45 @@ def create_edit_keyboard(idx, num_objects):
     return keyboard
 
 
+def create_main_menu(user_id):
+    """
+    Создание основной клавиатуры
+    """
+    # Получаем роль пользователя
+    role = db.get_role(user_id)
+    print(role)
+
+    # Создаем основное меню
+    keyboard = [
+        [
+            KeyboardButton(text="Отправить фото"),
+            KeyboardButton(text="Коллекции")
+        ],
+        [KeyboardButton(text="Инструкция")]
+    ]
+
+    # Если роль пользователя manager, добавляем кнопку "Выход"
+    if role[0] == "manager":
+        keyboard.append([KeyboardButton(text="Выход")])
+
+    # Создаем клавиатуру с учетом размера кнопок
+    main_menu = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+
+    return main_menu
+
+
 def create_rotate_keyboard(idx, num_objects):
     """
     Создание клавиатуры для вращения изображений
     """
     buttons = []
 
-    if idx == 0:
+    if num_objects == 1:
+        buttons.append([
+            InlineKeyboardButton(text="✖", callback_data="rotate_cross"),
+            InlineKeyboardButton(text="✖", callback_data="rotate_right"),
+        ])
+    elif idx == 0:
         buttons.append([
             InlineKeyboardButton(text="✖", callback_data="rotate_cross"),
             InlineKeyboardButton(text="→", callback_data="rotate_right"),
@@ -246,7 +258,7 @@ def create_rotate_keyboard(idx, num_objects):
             InlineKeyboardButton(text="Завершить редактирование", callback_data="rotate_continue"),
         ],
         [
-            InlineKeyboardButton(text="Выход", callback_data="rotate_exit"),
+            InlineKeyboardButton(text="В главное меню", callback_data="rotate_exit"),
         ],
     ])
 
@@ -254,37 +266,9 @@ def create_rotate_keyboard(idx, num_objects):
     return keyboard
 
 
-def create_name_quantity_keyboard(idx, num_objects):
-    buttons = []
-
-    if idx == 0:
-        buttons.append([
-            InlineKeyboardButton(text="✖", callback_data="edit_cross"),
-            InlineKeyboardButton(text="→", callback_data="edit_right"),
-        ])
-    elif idx == num_objects - 1:
-        buttons.append([
-            InlineKeyboardButton(text="←", callback_data="edit_left"),
-            InlineKeyboardButton(text="✖", callback_data="edit_cross"),
-        ])
-    else:
-        buttons.append([
-            InlineKeyboardButton(text="←", callback_data="edit_left"),
-            InlineKeyboardButton(text="→", callback_data="edit_right"),
-        ])
-
-    buttons.extend([
-        [
-            InlineKeyboardButton(text="Назвать", callback_data="edit_name"),
-            InlineKeyboardButton(text="Указать количество", callback_data="edit_quantity"),
-        ],
-        [
-            InlineKeyboardButton(text="Создать коллекцию", callback_data="edit_create_collection"),
-        ],
-        [
-            InlineKeyboardButton(text="Отправить zip", callback_data="edit_send_zip"),
-        ],
-    ])
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons, row_width=1)
-    return keyboard
+async def remove_keyboard(message: Message) -> None:
+    """
+    Удаление клавиатуры
+    """
+    await message.answer("ㅤ", reply_markup=ReplyKeyboardRemove())
+    await bot.delete_message(message.chat.id, message.message_id + 1)

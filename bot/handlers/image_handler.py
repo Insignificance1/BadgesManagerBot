@@ -4,8 +4,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram import F
 
 from bot.settings.states import ImageStates
-import bot.keyboard as kb
-from bot.keyboard import create_edit_keyboard
+import bot.settings.keyboard as kb
+from bot.settings.keyboard import create_edit_keyboard
 from bot.services.other_service import get_collection_id_and_name
 from bot.settings.variables import bot, db
 

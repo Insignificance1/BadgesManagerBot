@@ -7,27 +7,31 @@ from datetime import datetime
 
 from aiogram import types
 from aiogram.filters import CommandStart
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, \
-    ReplyKeyboardRemove
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram import F
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import FSInputFile
 from aiogram.exceptions import TelegramBadRequest
 from numpy.compat import long
 
-import keyboard
-from bot.settings import states
+from bot.settings import keyboard
 from bot.settings.states import States
 from model.convert import Converter
-from model.segment import rotate_image
-from keyboard import create_rotate_keyboard
+from bot.settings.keyboard import remove_keyboard
 from services.other_service import get_collection_id_and_name
+from services.task_manager import task_manager
 from services.statistics_service import generate_user_statistics
+from bot.settings.variables import bot, dp, db, executor
+
 from handlers.image_handler import register_image_handlers
-from bot.settings.variables import bot, dp, segmenter, db, executor
+from handlers.instruction_handler import register_instruction_handlers
+from handlers.photo_handler import register_photo_handlers
+
 
 register_image_handlers(dp)
+register_instruction_handlers(dp)
+register_photo_handlers(dp)
+
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +40,6 @@ logging.basicConfig(level=logging.INFO)
 # Знакомство с пользователем
 @dp.message(CommandStart())
 async def command_start_handler(message: Message, state: FSMContext) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
     # Добавляем пользователя в БД
     user_id: long = message.from_user.id
     user_full_name = message.from_user.full_name
@@ -54,6 +57,7 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
 
 
 @dp.message(F.text == "Войти как пользователь", States.manager)
+async def manager_to_user_handler(message: Message) -> None:
 async def manager_to_user_handler(message: Message, state: FSMContext) -> None:
     db.log_user_activity(message.from_user.id, message.message_id)
     main_menu = keyboard.create_main_menu(message.from_user.id)
@@ -208,210 +212,6 @@ async def all_time_handler(message: Message, state: FSMContext) -> None:
     await state.set_state(States.manager)
 
 
-# Ожидание отправки фото
-@dp.message(F.text == "Отправить фото")
-async def send_photo_handler(message: Message, state: FSMContext) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    await message.answer("Пожалуйста, отправьте фото.", reply_markup=keyboard.back_menu)
-    await state.set_state(States.waiting_for_photo)
-
-
-# Закачка полученного фото
-@dp.message(F.photo, States.waiting_for_photo)
-async def get_photo_handler(message: Message, state: FSMContext) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    # Скачиваем оригинал
-    photo_id = message.photo[-1]
-    file_info = await bot.get_file(photo_id.file_id)
-    image_path = f"../Photo/original/{photo_id.file_id}.jpg"
-    await bot.download_file(file_path=file_info.file_path, destination=image_path)
-
-    await message.answer("Фото получено.", reply_markup=keyboard.function_menu)
-    await state.clear()
-    await state.update_data(image_path=image_path, photo_id=photo_id.file_id)
-    await state.set_state(States.choose_function_photo)
-
-
-# Подсчёт количества значков на фото
-@dp.message(F.text == "Посчитать количество", States.choose_function_photo)
-async def count_handler(message: Message, state: FSMContext) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    data = await state.get_data()
-    image_path = data.get('image_path')
-    # Запускаем параллельную задачу для режима ожидания
-    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
-    loop = asyncio.get_running_loop()
-    num_objects = await loop.run_in_executor(executor, segmenter.get_count, image_path)
-    # Даём пользователю возможность дальнейшей нарезки фото
-    await message.answer(f"Количество найденных объектов на фотографии: {num_objects}",
-                         reply_markup=keyboard.function_menu)
-    # Завершаем режима ожидания
-    loading_task.cancel()
-
-
-# Нарезка фото на отдельные значки
-@dp.message(F.text == "Нарезать на отдельные значки", States.choose_function_photo)
-async def cut_handler(message: Message, state: FSMContext) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    data = await state.get_data()
-    image_path = data.get('image_path')
-    photo_id = data.get('photo_id')
-    await state.set_state(States.align_function_photo)
-    # Запускаем параллельную задачу для режима ожидания
-    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
-    loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(executor, segmenter.segment_image, image_path, photo_id)
-    num_objects = result
-    # Завершаем режима ожидания
-    loading_task.cancel()
-    # Выводим нарезанных фотографий
-    for idx in range(num_objects):
-        cropped_img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
-        photo_cropped = FSInputFile(cropped_img_path)
-        await bot.send_photo(chat_id=message.chat.id, photo=photo_cropped, reply_markup=keyboard.align_menu)
-    await state.update_data(image_path=image_path, photo_id=photo_id, num_objects=num_objects)
-
-
-# Подготовка к выравниванию изображений
-@dp.message(F.text == "Выровнять", States.align_function_photo)
-async def edit_handler(message: Message, state: FSMContext) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    data = await state.get_data()
-    photo_id = data.get('photo_id')
-    num_objects = data.get('num_objects')
-    idx = 0
-    aligned_img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
-    # Создаём inline клавиатуры
-    edit_keyboard = create_rotate_keyboard(idx, num_objects)
-    photo_aligned = FSInputFile(aligned_img_path)
-
-    await remove_keyboard(message)
-    await bot.send_photo(chat_id=message.chat.id, photo=photo_aligned, reply_markup=edit_keyboard,
-                         caption='ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ')
-    await state.update_data(edit_idx=idx)
-
-
-# Выравнивание изображений
-@dp.callback_query(lambda c: c.data.startswith('rotate_'))
-async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext):
-    db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
-    data = await state.get_data()
-    photo_id = data.get('photo_id')
-    edit_idx = data.get('edit_idx')
-    num_objects = data.get('num_objects')
-    user_id = data.get('user_id')
-    action = callback_query.data.split('_')[-1]
-    angle = 0
-    if action == 'left':
-        edit_idx = max(edit_idx - 1, 0)
-    elif action == 'right':
-        edit_idx += 1  # Увеличиваем idx для перехода к следующему изображению
-    elif action == 'continue':
-        await bot.send_message(chat_id=callback_query.message.chat.id, text="Коллекция полная?",
-                               reply_markup=keyboard.yes_no_menu)
-        await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
-        await callback_query.answer()
-        return
-    elif action == 'exit':
-        main_menu = keyboard.create_main_menu(user_id)
-        await bot.send_message(chat_id=callback_query.message.chat.id, text="Вы вернулись в главное меню.",
-                               reply_markup=main_menu)
-        await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
-        await callback_query.answer()
-        return
-    else:
-        try:
-            angle = int(action)
-        except ValueError:
-            raise ValueError("Обнаружено несуществующее действие")
-
-    image_path = f"../Photo/noBg/{photo_id}_{edit_idx}.png"
-    if angle != 0:
-        rotate_image(image_path, angle)
-
-    edit_keyboard = create_rotate_keyboard(edit_idx, num_objects)
-    photo_aligned = FSInputFile(image_path)
-    await bot.edit_message_media(
-        chat_id=callback_query.message.chat.id,
-        message_id=callback_query.message.message_id,
-        media=types.InputMediaPhoto(media=photo_aligned,
-                                    caption='ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ'),
-        reply_markup=edit_keyboard
-    )
-
-    await state.update_data(edit_idx=edit_idx)
-    await callback_query.answer()
-
-
-# Продолжение после получения значков после нарезки
-@dp.message(F.text == "Продолжить", States.align_function_photo)
-async def continue_handler(message: Message) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    await message.answer("Коллекция полная?", reply_markup=keyboard.yes_no_menu)
-
-
-# Обработка для полной коллекции после нарезки
-@dp.message(F.text == "Да")
-async def yes_handler(message: Message, state: FSMContext) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    await state.set_state(States.all_collection_create)
-    await message.answer("Введите название коллекции.", reply_markup=keyboard.back_menu)
-
-
-# Создание коллекции после нарезки
-@dp.message(F.text, States.all_collection_create)
-async def create_after_yes_handler(message: Message, state: FSMContext) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    # Запускаем параллельную задачу для режима ожидания
-    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
-    data = await state.get_data()
-    loop = asyncio.get_running_loop()
-    main_menu = keyboard.create_main_menu(message.from_user.id)
-    try:
-        # Добавляем коллекцию
-        result = await loop.run_in_executor(executor, db.add_collection, message.from_user.id, message.text)
-        reply, id_collection = result
-        num_objects = data.get('num_objects')
-        photo_id = data.get('photo_id')
-        # Добавляем изображения в соответствующую коллекцию
-        for idx in range(num_objects):
-            img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
-            await loop.run_in_executor(executor, db.insert_image, message.from_user.id, img_path, id_collection)
-        await message.reply(reply, reply_markup=main_menu)
-        # Завершаем режим ожидания
-        loading_task.cancel()
-    # Обрабатываем ошибки из других методов
-    except Exception as e:
-        await message.reply(str(e), reply_markup=main_menu)
-        await yes_handler(message, state)
-        loading_task.cancel()
-    await state.clear()
-
-
-# Обработка для неполной коллекции после нарезки
-@dp.message(F.text == "Нет")
-async def no_handler(message: Message, state: FSMContext) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    # Создаём архив с параллельным режимом ожидания
-    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
-    data = await state.get_data()
-    photo_id = data.get('photo_id')
-    num_objects = data.get('num_objects')
-    zip_path = f'../Photo/ZIP/{photo_id}.zip'
-    converter = Converter()
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(executor, converter.convert_to_zip, photo_id, num_objects, zip_path)
-    # Отправляем архив
-    zip_file = FSInputFile(zip_path)
-    main_menu = keyboard.create_main_menu(message.from_user.id)
-    await message.reply("В таком случае держите архив с размеченными значками.", reply_markup=main_menu)
-    await bot.send_document(chat_id=message.chat.id, document=zip_file)
-    # Завершаем режим ожидания
-    loading_task.cancel()
-    # Удаляем архив
-    os.remove(zip_path)
-
-
 # Выбор действия над коллекциями
 @dp.message(F.text == "Коллекции")
 async def collections_handler(message: Message) -> None:
@@ -507,7 +307,7 @@ async def send_pdf(callback_query: CallbackQuery):
                                           images_list, name_list, count_list)
     # Отправляем файл пользователю
     pdf = FSInputFile(pdf_path)
-    loading_task.cancel()
+    task_manager.cancel_task_by_name(f'task_{callback_query.from_user.id}')
     try:
         await bot.delete_message(chat_id=callback_query.message.chat.id,
                                  message_id=callback_query.message.message_id)
@@ -633,7 +433,7 @@ async def del_favorites_list_handler(message: Message) -> None:
 async def edit_favorite_handler(callback_query: CallbackQuery) -> None:
     db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
     # Запускаем параллельную задачу для режима ожидания
-    loading_task = asyncio.create_task(send_loading_message(callback_query.message.chat.id))
+    task_manager.create_loading_task(callback_query.message.chat.id, f'task_{callback_query.from_user.id}')
     loop = asyncio.get_running_loop()
     # Получаем id и название коллекции
     is_favorite = callback_query.data.startswith("add_favorite_")
@@ -648,7 +448,7 @@ async def edit_favorite_handler(callback_query: CallbackQuery) -> None:
     else:
         await callback_query.message.answer(f"Коллекция {name} удалена из избранного.",
                                             reply_markup=keyboard.favorite_collections_menu)
-    loading_task.cancel()
+    task_manager.cancel_task_by_name(f'task_{callback_query.from_user.id}')
 
 
 # Выбор коллекции для пополнения
@@ -679,7 +479,7 @@ async def get_zip_handler(message: Message, state: FSMContext) -> None:
     db.log_user_activity(message.from_user.id, message.message_id)
     await message.reply("Файл получен.", reply_markup=keyboard.back_menu)
     # Запускаем параллельную задачу для режима ожидания
-    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
+    task_manager.create_loading_task(message.chat.id, f'task_{message.from_user.id}')
     data = await state.get_data()
     collection_id = data.get('collection_id')
     collection_name = data.get('collection_name')
@@ -694,10 +494,10 @@ async def get_zip_handler(message: Message, state: FSMContext) -> None:
                                              reply_markup=main_menu)
         )
         # Завершаем режим ожидания
-        loading_task.cancel()
+        task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
     except Exception as e:
         await message.reply(f"Ошибка при пополнении коллекции: {e}", reply_markup=main_menu)
-        loading_task.cancel()
+        await task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
 
     await state.clear()
     await state.set_state(States.manager)
@@ -725,10 +525,10 @@ async def get_zip_handler(message: Message, state: FSMContext) -> None:
 async def create_collection_handler(message: Message, state: FSMContext) -> None:
     db.log_user_activity(message.from_user.id, message.message_id)
     # Запускаем параллельную задачу для режима ожидания
-    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
+    task_manager.create_loading_task(message.chat.id, f'task_{message.from_user.id}')
     data = await state.get_data()
     zip_file_id = data.get('zip_file_id')
-
+    collection_id = None
     # Добавляем коллекцию
     while True:
         collection_name = message.text
@@ -737,7 +537,7 @@ async def create_collection_handler(message: Message, state: FSMContext) -> None
             break
         except Exception as e:
             await message.reply(str(e) + '\nПопробуйте ещё раз.', reply_markup=keyboard.back_menu)
-            loading_task.cancel()
+            await task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
             collection_name = await dp.throttle("collection_name", rate=1)(
                 dp.message(F.text, States.add_new_collection_zip_name))
             continue
@@ -751,10 +551,10 @@ async def create_collection_handler(message: Message, state: FSMContext) -> None
                                              reply_markup=main_menu)
         )
         # Завершаем режим ожидания
-        loading_task.cancel()
+        await task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
     except Exception as e:
         await message.reply(f"Ошибка при создании коллекции: {e}", reply_markup=main_menu)
-        loading_task.cancel()
+        await task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
 
     await state.clear()
 
@@ -806,7 +606,7 @@ async def delete_collection_handler(message: Message) -> None:
 async def delete_collection_number_handler(callback_query: CallbackQuery) -> None:
     db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
     # Запускаем параллельную задачу для режима ожидания
-    loading_task = asyncio.create_task(send_loading_message(callback_query.message.chat.id))
+    task_manager.create_loading_task(callback_query.message.chat.id, f'task_{callback_query.from_user.id}')
     loop = asyncio.get_running_loop()
     # Получаем id коллекции
     collection_id = (await get_collection_id_and_name(callback_query, loop, 1))[0]
@@ -814,7 +614,7 @@ async def delete_collection_number_handler(callback_query: CallbackQuery) -> Non
     await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
     await callback_query.message.answer("Коллекция успешно удалена.", reply_markup=keyboard.collections_menu)
     # Завершаем режим ожидания
-    loading_task.cancel()
+    await task_manager.cancel_task_by_name(f'task_{callback_query.from_user.id}')
 
 
 # Форматирование списка коллекций в InlineKeyboard
@@ -877,12 +677,6 @@ async def send_loading_message(chat_id):
             await asyncio.sleep(0.5)
     except asyncio.CancelledError:
         await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
-
-
-# Удаление клавиатуры
-async def remove_keyboard(message: Message) -> None:
-    await message.answer("ㅤ", reply_markup=ReplyKeyboardRemove())
-    await bot.delete_message(message.chat.id, message.message_id + 1)
 
 
 @dp.message(F.text == "Назад", States.manager)
