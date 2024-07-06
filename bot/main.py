@@ -56,7 +56,6 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
 
 
 @dp.message(F.text == "Войти как пользователь", States.manager)
-async def manager_to_user_handler(message: Message) -> None:
 async def manager_to_user_handler(message: Message, state: FSMContext) -> None:
     db.log_user_activity(message.from_user.id, message.message_id)
     main_menu = keyboard.create_main_menu(message.from_user.id)
@@ -463,7 +462,7 @@ async def add_handler(message: Message) -> None:
 
 # Ожидание архива с изображениями для пополнения коллекции
 @dp.callback_query(lambda c: c.data.startswith("add_badges_"))
-async def add_badges_handler(callback_query: CallbackQuery, state: FSMContext) -> None:
+async def add_badges_handler(message: Message, callback_query: CallbackQuery, state: FSMContext) -> None:
     db.log_user_activity(message.from_user.id, message.message_id)
     collection_id, name = await get_collection_id_and_name(callback_query, type_id=1)
     await callback_query.message.answer("Отправьте ZIP-файл с изображениями.", reply_markup=keyboard.back_menu)
