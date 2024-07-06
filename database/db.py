@@ -55,6 +55,11 @@ class DataBase:
                                           values ('{id}', '{role}')""",
                         "[INFO] User was added", True)
 
+    def get_role(self, id):
+        return self.exec_query(
+            f"""select role from {schema_name}.users where id={id}""",
+            "[INFO] Collect list null badges", False)
+
     # Вставка изображения
     def insert_image(self, id_user, path, id_collection):
         # Отправляем SQL-запрос для добавления изображения в коллекцию
@@ -242,9 +247,8 @@ class DataBase:
                                  "[INFO] Counting collections for user", True)
         return len(result)
 
-
     def get_users_stats(self, start_date, end_date):
         return self.exec_query(f"""SELECT created_at
             FROM {schema_name}.users
-            WHERE created_at BETWEEN ({end_date}) AND ({start_date})
-            ORDER BY created_at ASC""","[INFO] Collect stats for users",False)
+            WHERE created_at BETWEEN ('{start_date}') AND ('{end_date}')
+            ORDER BY created_at ASC""", "[INFO] Collect stats for users", True)

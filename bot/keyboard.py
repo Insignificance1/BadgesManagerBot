@@ -1,16 +1,31 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from bot.settings.variables import db
+
 
 # Основная клавиатура
-main_menu = ReplyKeyboardMarkup(
-    keyboard=[
+def create_main_menu(user_id):
+    # Получаем роль пользователя
+    role = db.get_role(user_id)
+    print(role)
+
+    # Создаем основное меню
+    keyboard = [
         [
             KeyboardButton(text="Отправить фото"),
             KeyboardButton(text="Коллекции")
         ],
         [KeyboardButton(text="Инструкция")]
-    ],
-    resize_keyboard=True
-)
+    ]
+
+    # Если роль пользователя manager, добавляем кнопку "Выход"
+    if role[0] == "manager":
+        keyboard.append([KeyboardButton(text="Выход")])
+
+    # Создаем клавиатуру с учетом размера кнопок
+    main_menu = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+
+    return main_menu
+
 
 # Клавитура с функциями обработки фото
 function_menu = ReplyKeyboardMarkup(
@@ -119,6 +134,32 @@ align_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+manager_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Войти как пользователь")],
+        [KeyboardButton(text="Войти как менеджер")],
+    ],
+    resize_keyboard=True
+)
+
+manager_function_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Статистика посещаемости")],
+        [KeyboardButton(text="Статистика новых пользователей")],
+        [KeyboardButton(text="Выход")],
+    ],
+    resize_keyboard=True
+)
+
+time_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="За период")],
+        [KeyboardButton(text="За все время")],
+        [KeyboardButton(text="Назад")]
+    ],
+    resize_keyboard=True
+)
+
 # Клавиатура после перехода в выравнивание
 function3_menu = ReplyKeyboardMarkup(
     keyboard=[
@@ -206,6 +247,42 @@ def create_rotate_keyboard(idx, num_objects):
         ],
         [
             InlineKeyboardButton(text="Выход", callback_data="rotate_exit"),
+        ],
+    ])
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons, row_width=1)
+    return keyboard
+
+
+def create_name_quantity_keyboard(idx, num_objects):
+    buttons = []
+
+    if idx == 0:
+        buttons.append([
+            InlineKeyboardButton(text="✖", callback_data="edit_cross"),
+            InlineKeyboardButton(text="→", callback_data="edit_right"),
+        ])
+    elif idx == num_objects - 1:
+        buttons.append([
+            InlineKeyboardButton(text="←", callback_data="edit_left"),
+            InlineKeyboardButton(text="✖", callback_data="edit_cross"),
+        ])
+    else:
+        buttons.append([
+            InlineKeyboardButton(text="←", callback_data="edit_left"),
+            InlineKeyboardButton(text="→", callback_data="edit_right"),
+        ])
+
+    buttons.extend([
+        [
+            InlineKeyboardButton(text="Назвать", callback_data="edit_name"),
+            InlineKeyboardButton(text="Указать количество", callback_data="edit_quantity"),
+        ],
+        [
+            InlineKeyboardButton(text="Создать коллекцию", callback_data="edit_create_collection"),
+        ],
+        [
+            InlineKeyboardButton(text="Отправить zip", callback_data="edit_send_zip"),
         ],
     ])
 
