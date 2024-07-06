@@ -56,14 +56,14 @@ class DataBase:
                         "[INFO] User was added", True)
 
     def log_user_activity(self, user_id, message_id):
-        self.exec_query(f"""insert into {schema_name}.user_activity (id, message_id)
-                                          values ('{id}', '{message_id}')""",
-                        "[INFO] User was added", True)
+        self.exec_query(f"""insert into {schema_name}.user_activity (user_id, message_id)
+                                          values ('{user_id}', '{message_id}')""",
+                        "[INFO] Activity was added", True)
 
     def get_role(self, id):
         return self.exec_query(
             f"""select role from {schema_name}.users where id={id}""",
-            "[INFO] Collect list null badges", False)
+            "[INFO] Role list", False)
 
     # Вставка изображения
     def insert_image(self, id_user, path, id_collection):
@@ -252,33 +252,37 @@ class DataBase:
                                  "[INFO] Counting collections for user", True)
         return len(result)
 
-
-    #время регистрации юзера
+    # время регистрации юзера
     def get_users_stats(self, start_date, end_date):
         return self.exec_query(f"""SELECT created_at
             FROM {schema_name}.users
             WHERE created_at BETWEEN ('{start_date}') AND ('{end_date}')
-            ORDER BY created_at ASC""", "[INFO] Collect stats for users", True)
+            ORDER BY created_at ASC""", "[INFO] Register stats for users", True)
 
+    def get_workload_stats(self, start_date, end_date):
+        return self.exec_query(f"""SELECT created_at
+            FROM {schema_name}.user_activity
+            WHERE created_at BETWEEN ('{start_date}') AND ('{end_date}')
+            ORDER BY created_at ASC""", "[INFO] Workload stats for users", True)
 
-    #коллекции по имени
+    # коллекции по имени
     def get_list_collection_for_name(self, id_user, name):
-        message = self.exec_query(f"""select id, name from {schema_name}.collections where (id_user={id_user} and name='{name}')""",
-                                  "[INFO] Collection list were received", True)
+        message = self.exec_query(
+            f"""select id, name from {schema_name}.collections where (id_user={id_user} and name='{name}')""",
+            "[INFO] Collection list were received", True)
         if len(message) == 0:
             return "Нет коллекций"
         else:
             return message
 
-
     def get_image(self, id_image):
         return self.exec_query(f"""select path from {schema_name}.images where (id={id_image})""",
                                "[INFO] Collection path image", True)
 
-
     def get_all_images_for_name(self, id_user, name):
-        message = self.exec_query(f"""select id, name from {schema_name}.images where (id_user={id_user} and name='{name}')""",
-                               "[INFO] Collection list were received", True)
+        message = self.exec_query(
+            f"""select id, name from {schema_name}.images where (id_user={id_user} and name='{name}')""",
+            "[INFO] Collection list were received", True)
         if len(message) == 0:
             return "Нет значков"
         else:

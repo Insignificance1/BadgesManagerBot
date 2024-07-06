@@ -134,7 +134,7 @@ manager_menu = ReplyKeyboardMarkup(
 # Меню функций менеджера
 manager_function_menu = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="Статистика посещаемости")],
+        [KeyboardButton(text="Статистика нагрузки")],
         [KeyboardButton(text="Статистика новых пользователей")],
         [KeyboardButton(text="Выход")],
     ],

@@ -36,6 +36,7 @@ register_photo_handlers(dp)
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
+
 # Знакомство с пользователем
 @dp.message(CommandStart())
 async def command_start_handler(message: Message, state: FSMContext) -> None:
@@ -43,6 +44,7 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
     user_id: long = message.from_user.id
     user_full_name = message.from_user.full_name
     logging.info(f'{user_id=} {user_full_name=}')
+    db.log_user_activity(message.from_user.id, message.message_id)
     db.add_user(user_id)
     role = db.get_role(user_id)
     if role[0] == 'manager':
@@ -68,43 +70,61 @@ async def manager_to_user_handler(message: Message, state: FSMContext) -> None:
 @dp.message(F.text == "Войти как менеджер", States.manager)
 async def manager_handler(message: Message, state: FSMContext) -> None:
     db.log_user_activity(message.from_user.id, message.message_id)
+    await state.set_state(States.manager)
     await message.answer("Вам доступен функционал менеджера, чтобы вернуться к возможностям пользователя нажмите: "
                          "*Выйти*.",
                          reply_markup=keyboard.manager_function_menu,
                          parse_mode='Markdown')
 
 
-@dp.message(F.text == "Статистика посещаемости", States.manager)
-async def attendance_handler(message: Message, state: FSMContext) -> None:
+@dp.message(F.text == "Статистика нагрузки", States.manager)
+async def workload_handler(message: Message, state: FSMContext) -> None:
     db.log_user_activity(message.from_user.id, message.message_id)
-    await state.set_state(States.manager)
+    await state.set_state(States.manager_workload)
     await message.answer("Выберите:",
                          reply_markup=keyboard.time_menu,
                          parse_mode='Markdown')
 
 
-@dp.message(F.text == "За период", States.manager)
+@dp.message(F.text == "За период", States.manager_workload)
 async def period_handler(message: Message, state: FSMContext) -> None:
     db.log_user_activity(message.from_user.id, message.message_id)
     await remove_keyboard(message)
-    await state.set_state(States.input_period_attendance)
+    await state.set_state(States.input_period_workload)
     await message.answer("Введите начальную и конечную дату в формате: _Год-Месяц-День_ : _Год-Месяц-День_",
+                         reply_markup=keyboard.back_menu,
                          parse_mode='Markdown')
 
 
-@dp.message(F.text == "За все время", States.manager)
+@dp.message(F.text == "За все время", States.manager_workload)
 async def all_time_handler(message: Message, state: FSMContext) -> None:
     db.log_user_activity(message.from_user.id, message.message_id)
-    await message.answer("Статистика посещаемости",
-                         reply_markup=keyboard.manager_function_menu,
-                         parse_mode='Markdown')
+    user_id = message.from_user.id
+    d_start_date = datetime(year=2024, month=7, day=1,
+                            hour=0, minute=0, second=0)
+    d_end_date = datetime.now()
+    list_date = db.get_workload_stats(d_start_date, d_end_date)
+    path = await generate_user_statistics(list_date, user_id, 1)
+    graphic = FSInputFile(path)
+    await bot.send_photo(chat_id=message.chat.id, photo=graphic, reply_markup=keyboard.manager_function_menu)
+    await state.clear()
+    await state.set_state(States.manager)
 
 
-@dp.message(F.text, States.input_period_attendance)
-async def all_time_handler(message: Message, state: FSMContext) -> None:
+@dp.message(F.text, States.input_period_workload)
+async def period_time_workload_handler(message: Message, state: FSMContext) -> None:
     db.log_user_activity(message.from_user.id, message.message_id)
     date = message.text
+    user_id = message.from_user.id
     date_parts = date.split(" : ")
+
+    if date == "Назад":
+        await state.clear()
+        await state.set_state(States.manager)
+        await message.answer("Вернул вас в меню с функциями: ",
+                             reply_markup=keyboard.manager_function_menu,
+                             parse_mode='Markdown')
+        return
 
     if len(date_parts) != 2:
         await message.answer(
@@ -125,10 +145,25 @@ async def all_time_handler(message: Message, state: FSMContext) -> None:
             parse_mode='Markdown')
         return
 
-    await message.answer(f"Выбранный период: {start_date} : {end_date}",
-                         reply_markup=keyboard.manager_function_menu,
-                         parse_mode='Markdown')
+    start_dates = start_date.split("-")
+    end_dates = end_date.split("-")
+    d_start_date = datetime(year=int(start_dates[0]), month=int(start_dates[1]), day=int(start_dates[2]),
+                            hour=0, minute=0, second=0)
+    d_end_date = datetime(year=int(end_dates[0]), month=int(end_dates[1]), day=int(end_dates[2]),
+                          hour=23, minute=59, second=59)
+    list_date = db.get_workload_stats(d_start_date, d_end_date)
+    if not list_date:
+        await message.answer(
+            "*Ошибка*: По данному периоду ничего не найдено, введите корректную дату",
+            reply_markup=keyboard.back_menu,
+            parse_mode='Markdown')
+        return
+
+    path = await generate_user_statistics(list_date, user_id, 1)
+    graphic = FSInputFile(path)
+    await bot.send_photo(chat_id=message.chat.id, photo=graphic, reply_markup=keyboard.manager_function_menu)
     await state.clear()
+    await state.set_state(States.manager)
 
 
 @dp.message(F.text == "Статистика новых пользователей", States.manager)
@@ -146,6 +181,7 @@ async def period_handler(message: Message, state: FSMContext) -> None:
     await remove_keyboard(message)
     await state.set_state(States.input_period_new_users)
     await message.answer("Введите начальную и конечную дату в формате: _Год-Месяц-День_ : _Год-Месяц-День_",
+                         reply_markup=keyboard.back_menu,
                          parse_mode='Markdown')
 
 
@@ -157,7 +193,7 @@ async def all_time_handler(message: Message, state: FSMContext) -> None:
                             hour=0, minute=0, second=0)
     d_end_date = datetime.now()
     list_date = db.get_users_stats(d_start_date, d_end_date)
-    path = await generate_user_statistics(list_date, user_id)
+    path = await generate_user_statistics(list_date, user_id, 0)
     graphic = FSInputFile(path)
     await bot.send_photo(chat_id=message.chat.id, photo=graphic, reply_markup=keyboard.manager_function_menu)
     await state.clear()
@@ -170,6 +206,14 @@ async def all_time_handler(message: Message, state: FSMContext) -> None:
     date = message.text
     user_id = message.from_user.id
     date_parts = date.split(" : ")
+
+    if date == "Назад":
+        await state.clear()
+        await state.set_state(States.manager)
+        await message.answer("Вернул вас в меню с функциями: ",
+                             reply_markup=keyboard.manager_function_menu,
+                             parse_mode='Markdown')
+        return
 
     if len(date_parts) != 2:
         await message.answer(
@@ -195,7 +239,7 @@ async def all_time_handler(message: Message, state: FSMContext) -> None:
                             hour=0, minute=0, second=0)
     d_end_date = datetime(year=int(end_dates[0]), month=int(end_dates[1]), day=int(end_dates[2]),
                           hour=23, minute=59, second=59)
-    list_date = db.get_users_stats(d_start_date, d_end_date)
+    list_date = db.get_users_stats(d_start_date, d_end_date, 0)
     if not list_date:
         await message.answer(
             "*Ошибка*: По данному периоду ничего не найдено, введите корректную дату",
@@ -462,8 +506,8 @@ async def add_handler(message: Message) -> None:
 
 # Ожидание архива с изображениями для пополнения коллекции
 @dp.callback_query(lambda c: c.data.startswith("add_badges_"))
-async def add_badges_handler(message: Message, callback_query: CallbackQuery, state: FSMContext) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
+async def add_badges_handler(callback_query: CallbackQuery, state: FSMContext) -> None:
+    db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
     collection_id, name = await get_collection_id_and_name(callback_query, type_id=1)
     await callback_query.message.answer("Отправьте ZIP-файл с изображениями.", reply_markup=keyboard.back_menu)
     await state.update_data(collection_id=collection_id, collection_name=name)
@@ -730,6 +774,8 @@ async def send_loading_message(chat_id):
 
 
 @dp.message(F.text == "Назад", States.manager)
+@dp.message(F.text == "Назад", States.manager_new_user)
+@dp.message(F.text == "Назад", States.manager_workload)
 async def back_handler(message: Message, state: FSMContext) -> None:
     db.log_user_activity(message.from_user.id, message.message_id)
     await state.clear()
