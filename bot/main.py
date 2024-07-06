@@ -2,11 +2,10 @@ import logging
 import asyncio
 import os
 import zipfile
-from concurrent.futures import ThreadPoolExecutor
 
-from aiogram import Bot, Dispatcher, types
+from aiogram import types
 from aiogram.filters import CommandStart
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile, CallbackQuery, \
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, \
     ReplyKeyboardRemove
 from aiogram import F
 from aiogram.fsm.context import FSMContext
@@ -14,27 +13,17 @@ from aiogram.types import FSInputFile
 from aiogram.exceptions import TelegramBadRequest
 from numpy.compat import long
 
-import config
 import keyboard
-
-from states import States
-from database.db import DataBase
-from model.segment import Segmenter
+from bot.settings.states import States
 from model.convert import Converter
 from model.segment import rotate_image
-from keyboard import create_rotate_keyboard, create_edit_keyboard
+from keyboard import create_rotate_keyboard
+from services.other_service import get_collection_id_and_name
 
 from handlers.image_handler import register_image_handlers
-
-bot = Bot(token=config.TOKEN)
-# Инициализация диспетчера
-dp = Dispatcher()
-segmenter = Segmenter(model_path='../v3-965photo-100ep.pt')
-db = DataBase()
-
+from bot.settings.variables import bot, dp, segmenter, db, executor
 register_image_handlers(dp)
 
-executor = ThreadPoolExecutor()
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -425,26 +414,6 @@ async def show_handler(message: Message) -> None:
             db.get_list_favorites(user_id), 'show_favorite_'), parse_mode='Markdown')
 
 
-# Редактирование коллекции
-@dp.callback_query(lambda c: c.data.startswith('show_collection_') or c.data.startswith('show_favorite_'))
-async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext):
-    # Получаем id и название коллекции
-    type_id = 2 if callback_query.data.startswith("show_favorite_") else 1
-    collection_id = (await get_collection_id_and_name(callback_query, type_id=type_id))[0]
-    # Получаем изображения в выбранной коллекции
-    images = db.get_all_images(collection_id)
-    # Преобразуем результат запроса в список путей
-    formatted_images = [row[0] for row in images]
-    # Отправляем inline клавиатуру с первым изображением
-    name = db.get_image_name(formatted_images[0])[0]
-    count = db.get_image_count(formatted_images[0])[0]
-    await bot.send_photo(chat_id=callback_query.message.chat.id, photo=FSInputFile(str(formatted_images[0])),
-                         reply_markup=create_edit_keyboard(0, len(formatted_images)),
-                         caption=f'ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ\nНазвание: {name}\nКоличество: {count}')
-    await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
-    await state.update_data(images=formatted_images, edit_idx=0, mes_to_del=[])
-
-
 # Выбор коллекции для добавления в избранное
 @dp.message(F.text == "Добавить в избранное")
 async def add_favorites_list_handler(message: Message) -> None:
@@ -654,24 +623,6 @@ async def format_collection_list(collections, prefix):
             new_keyboard.append([InlineKeyboardButton(text=button_text, callback_data=callback_data)])
     new_keyboard.append([InlineKeyboardButton(text="Назад", callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=new_keyboard)
-
-
-# Получение id и названия коллекции
-async def get_collection_id_and_name(callback_query, loop=None, type_id=1):
-    if loop is None:
-        loop = asyncio.get_running_loop()
-    user_id = callback_query.from_user.id
-    # Ищем id коллекции и её название в БД
-    if type_id == 1:
-        db_message = await loop.run_in_executor(executor, db.get_list_collection, user_id)
-    elif type_id == 2:
-        db_message = await loop.run_in_executor(executor, db.get_list_favorites, user_id)
-    elif type_id == 3:
-        db_message = await loop.run_in_executor(executor, db.get_list_collection, user_id)
-    else:
-        db_message = await loop.run_in_executor(executor, db.get_list_favorites, user_id, False)
-    collection_id, name = db_message[int(callback_query.data.split("_")[2]) - 1]
-    return collection_id, name
 
 
 # Вывод инструкции

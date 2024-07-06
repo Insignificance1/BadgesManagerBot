@@ -2,16 +2,10 @@ from aiogram import types
 from aiogram.types import FSInputFile
 from aiogram.exceptions import TelegramBadRequest
 
-from concurrent.futures import ThreadPoolExecutor
-
-from database.db import DataBase
-from bot.main import bot
-from bot.states import ImageStates
+from bot.settings.states import ImageStates
 import bot.keyboard as kb
 from bot.keyboard import create_edit_keyboard
-
-db = DataBase()
-executor = ThreadPoolExecutor()
+from bot.settings.variables import bot, db
 
 
 async def handle_prev_action(state, edit_idx):

@@ -131,34 +131,41 @@ function3_menu = ReplyKeyboardMarkup(
 
 
 def create_edit_keyboard(idx, num_objects):
-    buttons = [[InlineKeyboardButton(text="Поменять название", callback_data="photo_name")],
-               [InlineKeyboardButton(text="Поменять количество", callback_data="photo_count")]]
+    """
+    Создание клавиатуры для редактирования изображений
+    """
+    buttons = [[InlineKeyboardButton(text="Поменять название", callback_data="image_name")],
+               [InlineKeyboardButton(text="Поменять количество", callback_data="image_count")]]
 
     if idx == 0:
         buttons.append([
-            InlineKeyboardButton(text="✖", callback_data="photo_cross"),
-            InlineKeyboardButton(text="➡️", callback_data="photo_next")
+            InlineKeyboardButton(text="✖", callback_data="image_cross"),
+            InlineKeyboardButton(text="➡️", callback_data="image_next")
         ])
     elif idx == num_objects - 1:
         buttons.append([
-            InlineKeyboardButton(text="⬅️", callback_data="photo_prev"),
-            InlineKeyboardButton(text="✖", callback_data="photo_cross"),
+            InlineKeyboardButton(text="⬅️", callback_data="image_prev"),
+            InlineKeyboardButton(text="✖", callback_data="image_cross"),
         ])
     else:
         buttons.append([
-            InlineKeyboardButton(text="⬅️", callback_data="photo_prev"),
-            InlineKeyboardButton(text="➡️", callback_data="photo_next")
+            InlineKeyboardButton(text="⬅️", callback_data="image_prev"),
+            InlineKeyboardButton(text="➡️", callback_data="image_next")
         ])
 
     buttons.extend([
-        [InlineKeyboardButton(text="Удалить", callback_data="photo_del")],
-        [InlineKeyboardButton(text="Выход", callback_data="photo_exit")]
+        [InlineKeyboardButton(text="Удалить", callback_data="image_del")],
+        [InlineKeyboardButton(text="Выход", callback_data="image_exit")]
     ])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons, row_width=1)
     return keyboard
 
+
 def create_rotate_keyboard(idx, num_objects):
+    """
+    Создание клавиатуры для вращения изображений
+    """
     buttons = []
 
     if idx == 0:

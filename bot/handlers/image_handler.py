@@ -1,16 +1,13 @@
 from aiogram import Dispatcher, types
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram import F
 
-from concurrent.futures import ThreadPoolExecutor
-
-from database.db import DataBase
-from bot.states import ImageStates
+from bot.settings.states import ImageStates
 import bot.keyboard as kb
-
-db = DataBase()
-executor = ThreadPoolExecutor()
+from bot.keyboard import create_edit_keyboard
+from bot.services.other_service import get_collection_id_and_name
+from bot.settings.variables import bot, db
 
 
 def register_image_handlers(dp: Dispatcher):
@@ -19,7 +16,28 @@ def register_image_handlers(dp: Dispatcher):
     """
     import bot.services.image_service as image_service
 
-    @dp.callback_query(lambda c: c.data.startswith('photo_'))
+    @dp.callback_query(lambda c: c.data.startswith('show_collection_') or c.data.startswith('show_favorite_'))
+    async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext):
+        """
+        Создание inline клавиатуры для редактирования изображений
+        """
+        # Получаем id и название коллекции
+        type_id = 2 if callback_query.data.startswith("show_favorite_") else 1
+        collection_id = (await get_collection_id_and_name(callback_query, type_id=type_id))[0]
+        # Получаем изображения в выбранной коллекции
+        images = db.get_all_images(collection_id)
+        # Преобразуем результат запроса в список путей
+        formatted_images = [row[0] for row in images]
+        # Отправляем inline клавиатуру с первым изображением
+        name = db.get_image_name(formatted_images[0])[0]
+        count = db.get_image_count(formatted_images[0])[0]
+        await bot.send_photo(chat_id=callback_query.message.chat.id, photo=FSInputFile(str(formatted_images[0])),
+                             reply_markup=create_edit_keyboard(0, len(formatted_images)),
+                             caption=f'ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ\nНазвание: {name}\nКоличество: {count}')
+        await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+        await state.update_data(images=formatted_images, edit_idx=0, mes_to_del=[])
+
+    @dp.callback_query(lambda c: c.data.startswith('image_'))
     async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext):
         """
         Обработка действия над изображением
