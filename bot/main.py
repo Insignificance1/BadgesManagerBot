@@ -618,22 +618,25 @@ async def delete_collection_number_handler(callback_query: CallbackQuery) -> Non
 #Начало поиска коллекций и значков
 @dp.message(F.text == "Поиск")
 async def search_handler(message: Message, state: FSMContext) -> None:
-    await message.answer("*Введите название коллекции или значка*", reply_markup=keyboard.create_main_menu(message.from_user.id), parse_mode='Markdown')
+    new_keyboard = []
+    new_keyboard.append([InlineKeyboardButton(text="Назад", callback_data="main_menu")])
     await state.set_state(States.waiting_for_search)
+    await remove_keyboard(message)
+    await message.answer("*Введите название коллекции или значка*",
+                         reply_markup=InlineKeyboardMarkup(inline_keyboard=new_keyboard),
+                         parse_mode='Markdown')
 
 
 @dp.message(F.text, States.waiting_for_search)
 async def search(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
+    search_query = message.text
     # Запускаем параллельную задачу для режима ожидания
     loading_task = asyncio.create_task(send_loading_message(message.chat.id))
-    search_query = message.text
     await message.answer("*Результаты поиска\nКоллекции:\n*",
                          reply_markup=await format_collection_list_id(db.get_list_collection_for_name(user_id, search_query),
                                                                    'search_collection_'),
                          parse_mode='Markdown')
-    loading_task.cancel()
-    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
     await message.answer("*Значки:\n*",
                          reply_markup=await format_image_list(db.get_all_images_for_name(user_id, search_query),
                                                                    'show_badge_'),
@@ -737,10 +740,10 @@ async def back_handler(message: Message, state: FSMContext) -> None:
 # Возвращение в главное меню для ReplyKeyboard
 @dp.message(F.text == "Назад")
 async def back_handler(message: Message, state: FSMContext) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
     await state.clear()
+    db.log_user_activity(message.from_user.id, message.message_id)
     main_menu = keyboard.create_main_menu(message.from_user.id)
-    await message.reply("Вы вернулись в главное меню.", reply_markup=main_menu)
+    await message.answer("Вы вернулись в главное меню.", reply_markup=main_menu)
 
 
 @dp.message(F.text == "Выход")

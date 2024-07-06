@@ -65,7 +65,6 @@ def register_image_handlers(dp: Dispatcher):
         """
         Создание inline клавиатуры для редактирования изображения
         """
-        loop = asyncio.get_running_loop()
         id = int(callback_query.data.split("_")[2])
         # получаем изображение
         image = db.get_image(id)
