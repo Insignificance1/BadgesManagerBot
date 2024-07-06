@@ -45,7 +45,7 @@ def register_image_handlers(dp: Dispatcher):
         Создание inline клавиатуры для редактирования изображений
         """
         # Получаем id и название коллекции
-        collection_id = int(callback_query.data.split("_")[2])[0]
+        collection_id = int(callback_query.data.split("_")[2])
         # Получаем изображения в выбранной коллекции
         images = db.get_all_images(collection_id)
         # Преобразуем результат запроса в список путей
@@ -68,11 +68,12 @@ def register_image_handlers(dp: Dispatcher):
         loop = asyncio.get_running_loop()
         id = int(callback_query.data.split("_")[2])
         # получаем изображение
-        image = await loop.run_in_executor(executor, db.get_image, id)[0]
+        image = db.get_image(id)
+        path = str(image[0][0])
         # Отправляем inline клавиатуру с первым изображением
-        name = db.get_image_name(image)
-        count = db.get_image_count(image)
-        await bot.send_photo(chat_id=callback_query.message.chat.id, photo=FSInputFile(str(image[0][0])),
+        name = db.get_image_name(path)[0]
+        count = db.get_image_count(path)[0]
+        await bot.send_photo(chat_id=callback_query.message.chat.id, photo=FSInputFile(path),
                              reply_markup=create_edit_keyboard(0, len(image)),
                              caption=f'ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ\nНазвание: {name}\nКоличество: {count}')
         await bot.delete_message(chat_id=callback_query.message.chat.id,
