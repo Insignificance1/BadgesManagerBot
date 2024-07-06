@@ -241,3 +241,10 @@ class DataBase:
         result = self.exec_query(f"select count(*) from {schema_name}.collections where id_user={id_user}",
                                  "[INFO] Counting collections for user", True)
         return len(result)
+
+
+    def get_users_stats(self, start_date, end_date):
+        return self.exec_query(f"""SELECT created_at
+            FROM {schema_name}.users
+            WHERE created_at BETWEEN ({end_date}) AND ({start_date})
+            ORDER BY created_at ASC""","[INFO] Collect stats for users",False)
