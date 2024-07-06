@@ -252,8 +252,34 @@ class DataBase:
                                  "[INFO] Counting collections for user", True)
         return len(result)
 
+
+    #время регистрации юзера
     def get_users_stats(self, start_date, end_date):
         return self.exec_query(f"""SELECT created_at
             FROM {schema_name}.users
             WHERE created_at BETWEEN ('{start_date}') AND ('{end_date}')
             ORDER BY created_at ASC""", "[INFO] Collect stats for users", True)
+
+
+    #коллекции по имени
+    def get_list_collection_for_name(self, id_user, name):
+        message = self.exec_query(f"""select id, name from {schema_name}.collections where (id_user={id_user} and name='{name}')""",
+                                  "[INFO] Collection list were received", True)
+        if len(message) == 0:
+            return "Нет коллекций"
+        else:
+            return message
+
+
+    def get_image(self, id_image):
+        return self.exec_query(f"""select path from {schema_name}.images where (id={id_image})""",
+                               "[INFO] Collection path image", True)
+
+
+    def get_all_images_for_name(self, id_user, name):
+        message = self.exec_query(f"""select id, name from {schema_name}.images where (id_user={id_user} and name='{name}')""",
+                               "[INFO] Collection list were received", True)
+        if len(message) == 0:
+            return "Нет значков"
+        else:
+            return message
