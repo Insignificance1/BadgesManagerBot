@@ -5,24 +5,26 @@ import zipfile
 
 from aiogram import types
 from aiogram.filters import CommandStart
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, \
-    ReplyKeyboardRemove
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram import F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import FSInputFile
 from aiogram.exceptions import TelegramBadRequest
 from numpy.compat import long
 
-import keyboard
+from bot.settings import keyboard
 from bot.settings.states import States
 from model.convert import Converter
 from model.segment import rotate_image
-from keyboard import create_rotate_keyboard
+from bot.settings.keyboard import create_rotate_keyboard, remove_keyboard
 from services.other_service import get_collection_id_and_name
+from bot.settings.variables import bot, dp, segmenter, db, executor
 
 from handlers.image_handler import register_image_handlers
-from bot.settings.variables import bot, dp, segmenter, db, executor
+from handlers.instruction_handler import register_instruction_handlers
+
 register_image_handlers(dp)
+register_instruction_handlers(dp)
 
 
 # Настройка логирования
@@ -625,37 +627,6 @@ async def format_collection_list(collections, prefix):
     return InlineKeyboardMarkup(inline_keyboard=new_keyboard)
 
 
-# Вывод инструкции
-@dp.message(F.text == "Инструкция")
-async def instruction_handler(message: Message) -> None:
-    instruction = (
-        "*Рекомендации по улучшению качества нарезки:*\n"
-        "1. Сделайте фотографию в высоком разрешении.\n"
-        "2. Обеспечьте хорошее освещение.\n"
-        "3. Используйте контрастный фон для фотографирования значков.\n"
-        "4. Значки должны располагаться на достаточном расстоянии друг от друга.\n\n"
-        "*Ограничения:*\n"
-        "1. Один пользователь может иметь не более 100 коллекций.\n"
-        "2. Одна коллекция может содержать не более 200 фотографий.\n"
-        "3. Название коллекции должно содержать от 3 до 55 символов.\n"
-        "4. Название значка должно содержать от 3 до 30 символов."
-    )
-    await message.answer(instruction, reply_markup=keyboard.instruction_menu, parse_mode='Markdown')
-
-
-# Обращение к ТП
-@dp.message(F.text == "Обратиться к ТП")
-async def support_handler(message: Message) -> None:
-    answer = (
-        "Если у вас есть какие-то вопросы, вы можете обратиться к:\n\n"
-        "@insignificance123\n"
-        "@Mihter_2208\n"
-        "@KatyaPark11\n"
-        "@sech14"
-    )
-    await message.answer(answer, reply_markup=keyboard.main_menu),
-
-
 # Режим ожидания
 async def send_loading_message(chat_id):
     message = await bot.send_message(chat_id, "Ожидайте, бот думает")
@@ -670,12 +641,6 @@ async def send_loading_message(chat_id):
             await asyncio.sleep(0.5)
     except asyncio.CancelledError:
         await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
-
-
-# Удаление клавиатуры
-async def remove_keyboard(message: Message) -> None:
-    await message.answer("ㅤ", reply_markup=ReplyKeyboardRemove())
-    await bot.delete_message(message.chat.id, message.message_id + 1)
 
 
 # Возвращение в главное меню для ReplyKeyboard

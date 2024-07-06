@@ -1,4 +1,7 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup,
+                           InlineKeyboardButton, Message)
+
+from bot.settings.variables import bot
 
 # Основная клавиатура
 main_menu = ReplyKeyboardMarkup(
@@ -211,3 +214,11 @@ def create_rotate_keyboard(idx, num_objects):
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons, row_width=1)
     return keyboard
+
+
+async def remove_keyboard(message: Message) -> None:
+    """
+    Удаление клавиатуры
+    """
+    await message.answer("ㅤ", reply_markup=ReplyKeyboardRemove())
+    await bot.delete_message(message.chat.id, message.message_id + 1)

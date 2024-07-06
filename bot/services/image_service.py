@@ -3,8 +3,8 @@ from aiogram.types import FSInputFile
 from aiogram.exceptions import TelegramBadRequest
 
 from bot.settings.states import ImageStates
-import bot.keyboard as kb
-from bot.keyboard import create_edit_keyboard
+import bot.settings.keyboard as kb
+from bot.settings.keyboard import create_edit_keyboard
 from bot.settings.variables import bot, db
 
 
