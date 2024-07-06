@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 
 
-async def generate_user_statistics(list_date, user_id):
+async def generate_user_statistics(list_date, user_id, index):
     # Извлечение дат из кортежей
     formatted_dates = [date[0] for date in list_date]
 
@@ -29,9 +29,15 @@ async def generate_user_statistics(list_date, user_id):
     # Создание графика
     plt.figure(figsize=(10, 5))
     plt.plot(user_counts.index, user_counts.values, marker='o', linestyle='-', color='b')
-    plt.xlabel('Дата регистрации')
-    plt.ylabel('Количество пользователей')
-    plt.title('Статистика новых пользователей')
+    plt.xlabel('Дата')
+    if index == 1:
+        plt.ylabel('Количество запросов')
+    else:
+        plt.ylabel('Количество пользователей')
+    if index == 1:
+        plt.title('Статистика нагрузки')
+    else:
+        plt.title('Статистика новых пользователей')
     plt.grid(True)
 
     # Форматирование оси x для отображения только дат

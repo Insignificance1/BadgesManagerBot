@@ -4,9 +4,10 @@ from aiogram.fsm.state import State, StatesGroup
 # Состояния FSM
 class States(StatesGroup):
     manager = State()  # Состояние для разделения функций менеджера от пользователя
-    input_period_attendance = State()  # Состояние ожидание ввода периода от менеджера
+    input_period_workload = State()  # Состояние ожидание ввода периода от менеджера
     input_period_new_users = State()  # Состояние ожидание ввода периода от менеджера
     manager_new_user = State()  # Состояние ожидания просмотра новых пользователей
+    manager_workload = State()  # Состояние ожидания просмотра загруженности бота
     waiting_for_zip_create = State()  # Состояние ожидания ZIP-файла при создании коллекции
     waiting_for_zip_add = State()  # Состояние ожидания ZIP-файла при пополнении коллекции
     change_collection_name = State()  # Ожидание ввода названия коллекции
