@@ -87,7 +87,7 @@ class DataBase:
                 result = self.exec_query(query, "[INFO] Collection was added", True)
                 # Получаем id новой коллекции из результата запроса.
                 new_collection_id = result[0][0]
-                return "Коллекция успешно создана", new_collection_id
+                return "Коллекция успешно создана.", new_collection_id
             except Exception as e:
                 raise Exception("[Ошибка] Произошла ошибка при попытке изменения базы данных.") from e
         else:
