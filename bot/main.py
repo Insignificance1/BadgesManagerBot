@@ -10,7 +10,6 @@ from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, F
     ReplyKeyboardRemove
 from aiogram import F
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import FSInputFile
 from aiogram.exceptions import TelegramBadRequest
 from numpy.compat import long
@@ -18,52 +17,27 @@ from numpy.compat import long
 import config
 import keyboard
 
+from states import States
 from database.db import DataBase
 from model.segment import Segmenter
 from model.convert import Converter
 from model.segment import rotate_image
 from keyboard import create_rotate_keyboard, create_edit_keyboard
 
-executor = ThreadPoolExecutor()
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
+from handlers.image_handler import register_image_handlers
 
 bot = Bot(token=config.TOKEN)
 # Инициализация диспетчера
 dp = Dispatcher()
-
 segmenter = Segmenter(model_path='../v3-965photo-100ep.pt')
 db = DataBase()
 
+register_image_handlers(dp)
 
-# Состояния FSM
-class States(StatesGroup):
-    waiting_for_zip_create = State()  # Состояние ожидания ZIP-файла при создании коллекции
-    waiting_for_zip_add = State()  # Состояние ожидания ZIP-файла при пополнении коллекции
-    waiting_for_photo = State()  # Ожидание фото для разметки
-    choose_function_photo = State()  # Ожидание выбора функции обработки фото
-    align_function_photo = State()  # Ожидание выравнивание значков
-    change_collection_name = State()  # Ожидание ввода названия коллекции
-    add_new_collection_zip_name = State()  # Ожидание создание новой колекции из ZIP файла с именем
-    add_badge = State()  # Ожидание фото значка в модуле редактирования
-    collections = State()  # Состояние для выгрузки PDF файла из всего списка
-    favorites = State()  # Состояние для выгрузки PDF файла из избранного
-    state_null_badges = State()  # Состояние для выгрузки PDF файла с 0 значками
-    state_list = State()  # Состояние считывания сообщения с номером коллекции
-    state_favorite_list = State()  # Состояние считывания сообщения с номером избранной коллекции
-    state_add_favorite_list = State()  # Состояние считывания сообщения с номером коллекции для добавления в избранное
-    state_del_favorite_list = State()  # Состояние считывания сообщения с номером коллекции для удаления из избранного
-    change_favorite_collection_name = State()  # Состояние ожидания ввода названия избранной коллекции
-    waiting_for_new_name = State()  # Ожидает задания имени
-    state_back = State()  # Ждёт кнопки назад
-    state_del_collection = State()  # Состояние ожидания удаления коллекции
-    all_collection_create = State()
-    align_state = State()
-    waiting_for_name_collection = State()
-    waiting_for_name_favorite = State()
-    waiting_for_image_name = State()
-    waiting_for_image_count = State()
+executor = ThreadPoolExecutor()
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
 
 
 # Знакомство с пользователем
@@ -304,7 +278,6 @@ async def favourites_list_handler(message: Message, state: FSMContext) -> None:
 @dp.message(F.text == "Выгрузить в PDF", States.collections)
 async def pdf_collections_handler(message: Message) -> None:
     user_id = message.from_user.id
-    await remove_keyboard(message)
     await message.answer("*Выберите коллекцию для выгрузки в PDF*\n",
                          reply_markup=await format_collection_list(db.get_list_collection(user_id), 'pdf_collection_'),
                          parse_mode='Markdown')
@@ -314,7 +287,6 @@ async def pdf_collections_handler(message: Message) -> None:
 @dp.message(F.text == "Выгрузить в PDF", States.favorites)
 async def pdf_collections_handler(message: Message) -> None:
     user_id = message.from_user.id
-    await remove_keyboard(message)
     await message.answer("*Выберите избранную коллекцию для выгрузки в PDF*\n",
                          reply_markup=await format_collection_list(db.get_list_favorites(user_id), 'pdf_favorite_'),
                          parse_mode='Markdown')
@@ -356,7 +328,6 @@ async def send_pdf(callback_query: CallbackQuery):
     name_list = await loop.run_in_executor(executor, db.get_all_name, collection_id, is_all_count)
     converter = Converter()
     # Конвертируем изображения в один PDF-файл
-    #pdf_path = await loop.run_in_executor(executor, converter.convert_to_pdf_base, name, collection_id, images_list)
     pdf_path = await loop.run_in_executor(executor, converter.convert_to_pdf_ext, name, collection_id,
                                           images_list, name_list, count_list)
     # Отправляем файл пользователю
@@ -465,107 +436,13 @@ async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext
     # Преобразуем результат запроса в список путей
     formatted_images = [row[0] for row in images]
     # Отправляем inline клавиатуру с первым изображением
+    name = db.get_image_name(formatted_images[0])[0]
+    count = db.get_image_count(formatted_images[0])[0]
     await bot.send_photo(chat_id=callback_query.message.chat.id, photo=FSInputFile(str(formatted_images[0])),
-                         reply_markup=create_edit_keyboard(0, len(formatted_images)), caption='ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ')
+                         reply_markup=create_edit_keyboard(0, len(formatted_images)),
+                         caption=f'ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ\nНазвание: {name}\nКоличество: {count}')
     await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
-    await state.update_data(images=formatted_images, edit_idx=0)
-
-
-# Обработка действия с изображением
-@dp.callback_query(lambda c: c.data.startswith('photo_'))
-async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext):
-    loop = asyncio.get_running_loop()
-    data = await state.get_data()
-    images = data.get('images')
-    edit_idx = data.get('edit_idx')
-    action = callback_query.data.split('_')[-1]
-
-    if action == 'prev':
-        edit_idx = max(edit_idx - 1, 0)
-    elif action == 'next':
-        edit_idx += 1
-    elif action == 'del':
-        loop.run_in_executor(executor, db.delete_image, images[edit_idx])
-        del images[edit_idx]
-        await callback_query.answer()
-        return
-    elif action == 'name':
-        await bot.send_message(chat_id=callback_query.message.chat.id, text="Введите новое название значка.")
-        await state.set_state(States.waiting_for_image_name)
-        await state.update_data(edit_idx=edit_idx)
-        return
-    elif action == 'count':
-        await bot.send_message(chat_id=callback_query.message.chat.id, text="Введите количество значков.")
-        await state.set_state(States.waiting_for_image_count)
-        await state.update_data(edit_idx=edit_idx)
-        return
-    elif action == 'exit':
-        await bot.send_message(chat_id=callback_query.message.chat.id, text="Вы вернулись в главное меню.",
-                               reply_markup=keyboard.main_menu)
-        await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
-        await callback_query.answer()
-        return
-
-    image_path = images[edit_idx]
-    edit_keyboard = create_edit_keyboard(edit_idx, len(images))
-    photo_aligned = FSInputFile(str(image_path))
-    await bot.edit_message_media(
-        chat_id=callback_query.message.chat.id,
-        message_id=callback_query.message.message_id,
-        media=types.InputMediaPhoto(media=photo_aligned,
-                                    caption='ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ'),
-        reply_markup=edit_keyboard
-    )
-
-    await state.update_data(edit_idx=edit_idx)
-    await callback_query.answer()
-
-
-# Обработка ввода нового названия значка
-@dp.message(F.text, States.waiting_for_image_name)
-async def process_new_name(message: types.Message, state: FSMContext):
-    loop = asyncio.get_running_loop()
-    new_name = message.text
-    if 3 <= len(new_name) <= 30:
-        data = await state.get_data()
-        images = data.get('images')
-        edit_idx = data.get('edit_idx')
-        image_path = images[edit_idx]
-        try:
-            await loop.run_in_executor(executor, db.update_image_name,image_path, new_name)
-            await message.reply(f'Название значка успешно изменено на "{new_name}".', reply_markup=keyboard.main_menu)
-            await state.clear()
-        except Exception as e:
-            await message.reply(str(e), reply_markup=keyboard.main_menu)
-            await state.clear()
-    else:
-        await message.reply("[Ошибка] Неверное название значка. Название должно содержать от 3 до 30 символов.")
-
-
-# Обработка ввода нового количества значков
-@dp.message(F.text, States.waiting_for_image_count)
-async def process_new_count(message: types.Message, state: FSMContext):
-    loop = asyncio.get_running_loop()
-    try:
-        new_count = int(message.text)
-        if new_count >= 0 and new_count <= 32767:
-            # реализация update_count функции аналогично update_image_name
-            data = await state.get_data()
-            images = data.get('images')
-            edit_idx = data.get('edit_idx')
-            image_path = images[edit_idx]
-            try:
-                db.update_image_count(image_path, new_count)
-                await message.reply(f'Количество значков успешно изменено на {new_count}.',
-                                    reply_markup=keyboard.main_menu)
-                await state.clear()
-            except Exception as e:
-                await message.reply(str(e), reply_markup=keyboard.main_menu)
-                await state.clear()
-        else:
-            await message.reply("[Ошибка] Количество значков должно быть положительным числом.")
-    except ValueError:
-        await message.reply("[Ошибка] Пожалуйста, введите корректное число для количества значков.")
+    await state.update_data(images=formatted_images, edit_idx=0, mes_to_del=[])
 
 
 # Выбор коллекции для добавления в избранное
