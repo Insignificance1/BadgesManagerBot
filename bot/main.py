@@ -569,12 +569,12 @@ async def delete_collection_number_handler(callback_query: CallbackQuery) -> Non
 #Начало поиска коллекций и значков
 @dp.message(F.text == "Поиск")
 async def search_handler(message: Message, state: FSMContext) -> None:
-    await message.answer("*Введите название коллекции или значка*", reply_markup=keyboard.back_menu, parse_mode='Markdown')
+    await message.answer("*Введите название коллекции или значка*", reply_markup=keyboard.create_main_menu(message.from_user.id), parse_mode='Markdown')
     await state.set_state(States.waiting_for_search)
 
 
 @dp.message(F.text, States.waiting_for_search)
-async def search(message: Message) -> None:
+async def search(message: Message, state: FSMContext) -> None:
     user_id = message.from_user.id
     # Запускаем параллельную задачу для режима ожидания
     loading_task = asyncio.create_task(send_loading_message(message.chat.id))
@@ -590,6 +590,7 @@ async def search(message: Message) -> None:
                                                                    'show_badge_'),
                          parse_mode='Markdown')
     loading_task.cancel()
+    await state.clear()
 
 
 # Форматирование списка коллекций в InlineKeyboard
