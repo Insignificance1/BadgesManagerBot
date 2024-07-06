@@ -193,6 +193,7 @@ def create_main_menu(user_id):
 
     # Создаем основное меню
     keyboard = [
+        [KeyboardButton(text="Поиск")],
         [
             KeyboardButton(text="Отправить фото"),
             KeyboardButton(text="Коллекции")

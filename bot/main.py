@@ -35,7 +35,6 @@ register_photo_handlers(dp)
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-
 # Знакомство с пользователем
 @dp.message(CommandStart())
 async def command_start_handler(message: Message, state: FSMContext) -> None:
@@ -567,6 +566,32 @@ async def delete_collection_number_handler(callback_query: CallbackQuery) -> Non
     await task_manager.cancel_task_by_name(f'task_{callback_query.from_user.id}')
 
 
+#Начало поиска коллекций и значков
+@dp.message(F.text == "Поиск")
+async def search_handler(message: Message, state: FSMContext) -> None:
+    await message.answer("*Введите название коллекции или значка*", reply_markup=keyboard.back_menu, parse_mode='Markdown')
+    await state.set_state(States.waiting_for_search)
+
+
+@dp.message(F.text, States.waiting_for_search)
+async def search(message: Message) -> None:
+    user_id = message.from_user.id
+    # Запускаем параллельную задачу для режима ожидания
+    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
+    search_query = message.text
+    await message.answer("*Результаты поиска\nКоллекции:\n*",
+                         reply_markup=await format_collection_list_id(db.get_list_collection_for_name(user_id, search_query),
+                                                                   'search_collection_'),
+                         parse_mode='Markdown')
+    loading_task.cancel()
+    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
+    await message.answer("*Значки:\n*",
+                         reply_markup=await format_image_list(db.get_all_images_for_name(user_id, search_query),
+                                                                   'show_badge_'),
+                         parse_mode='Markdown')
+    loading_task.cancel()
+
+
 # Форматирование списка коллекций в InlineKeyboard
 async def format_collection_list(collections, prefix):
     new_keyboard = []
@@ -575,6 +600,28 @@ async def format_collection_list(collections, prefix):
             button_text = f"{i}. {name}"
             callback_data = f"{prefix}{i}"
             new_keyboard.append([InlineKeyboardButton(text=button_text, callback_data=callback_data)])
+    new_keyboard.append([InlineKeyboardButton(text="Назад", callback_data="main_menu")])
+    return InlineKeyboardMarkup(inline_keyboard=new_keyboard)
+
+
+async def format_collection_list_id(collections, prefix):
+    new_keyboard = []
+    if collections not in ['Нет коллекций', 'Нет избранных коллекций']:
+        for i, (_, name) in enumerate(collections, start=1):
+            button_text = f"{i}. {name}"
+            callback_data = f"{prefix}{_}"
+            new_keyboard.append([InlineKeyboardButton(text=button_text, callback_data=callback_data)])
+    new_keyboard.append([InlineKeyboardButton(text="Назад", callback_data="main_menu")])
+    return InlineKeyboardMarkup(inline_keyboard=new_keyboard)
+
+
+async def format_image_list(collections, prefix):
+    new_keyboard = []
+    if collections not in ['Нет значков']:
+        for i, (_, name) in enumerate(collections, start=1):
+            button_text = f"{i}. {name}"
+            callback_data_image = f"{prefix}{_}"
+            new_keyboard.append([InlineKeyboardButton(text=button_text, callback_data=callback_data_image)])
     new_keyboard.append([InlineKeyboardButton(text="Назад", callback_data="main_menu")])
     return InlineKeyboardMarkup(inline_keyboard=new_keyboard)
 

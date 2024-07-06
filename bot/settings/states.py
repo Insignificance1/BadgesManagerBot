@@ -26,6 +26,7 @@ class States(StatesGroup):
     align_state = State()
     waiting_for_name_collection = State()
     waiting_for_name_favorite = State()
+    waiting_for_search = State()  # Ждёт ввода пользователя для поиска
 
 
 class ImageStates(StatesGroup):

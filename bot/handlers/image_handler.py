@@ -1,3 +1,5 @@
+import asyncio
+
 from aiogram import Dispatcher, types
 from aiogram.types import CallbackQuery, FSInputFile
 from aiogram.fsm.context import FSMContext
@@ -7,7 +9,7 @@ from bot.settings.states import ImageStates
 import bot.settings.keyboard as kb
 from bot.settings.keyboard import create_edit_keyboard
 from bot.services.other_service import get_collection_id_and_name
-from bot.settings.variables import bot, db
+from bot.settings.variables import bot, db, executor
 
 
 def register_image_handlers(dp: Dispatcher):
@@ -36,6 +38,47 @@ def register_image_handlers(dp: Dispatcher):
                              caption=f'ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ\nНазвание: {name}\nКоличество: {count}')
         await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
         await state.update_data(images=formatted_images, edit_idx=0, mes_to_del=[])
+
+    @dp.callback_query(lambda c: c.data.startswith('search_collection_'))
+    async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext):
+        """
+        Создание inline клавиатуры для редактирования изображений
+        """
+        # Получаем id и название коллекции
+        collection_id = int(callback_query.data.split("_")[2])[0]
+        # Получаем изображения в выбранной коллекции
+        images = db.get_all_images(collection_id)
+        # Преобразуем результат запроса в список путей
+        formatted_images = [row[0] for row in images]
+        # Отправляем inline клавиатуру с первым изображением
+        name = db.get_image_name(formatted_images[0])[0]
+        count = db.get_image_count(formatted_images[0])[0]
+        await bot.send_photo(chat_id=callback_query.message.chat.id, photo=FSInputFile(str(formatted_images[0])),
+                             reply_markup=create_edit_keyboard(0, len(formatted_images)),
+                             caption=f'ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ\nНазвание: {name}\nКоличество: {count}')
+        await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+        await state.update_data(images=formatted_images, edit_idx=0, mes_to_del=[])
+
+
+    @dp.callback_query(lambda c: c.data.startswith('show_badge_'))
+    async def process_edit_image_callback(callback_query: CallbackQuery, state: FSMContext):
+        """
+        Создание inline клавиатуры для редактирования изображения
+        """
+        loop = asyncio.get_running_loop()
+        id = int(callback_query.data.split("_")[2])
+        # получаем изображение
+        image = await loop.run_in_executor(executor, db.get_image, id)[0]
+        # Отправляем inline клавиатуру с первым изображением
+        name = db.get_image_name(image)
+        count = db.get_image_count(image)
+        await bot.send_photo(chat_id=callback_query.message.chat.id, photo=FSInputFile(str(image[0][0])),
+                             reply_markup=create_edit_keyboard(0, len(image)),
+                             caption=f'ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ\nНазвание: {name}\nКоличество: {count}')
+        await bot.delete_message(chat_id=callback_query.message.chat.id,
+                                 message_id=callback_query.message.message_id)
+        await state.update_data(images=image, edit_idx=0, mes_to_del=[])
+
 
     @dp.callback_query(lambda c: c.data.startswith('image_'))
     async def process_edit_callback(callback_query: CallbackQuery, state: FSMContext):
