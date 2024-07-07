@@ -1,8 +1,10 @@
 from aiogram.fsm.state import State, StatesGroup
 
 
-# Состояния FSM
-class States(StatesGroup):
+class SearchStates(StatesGroup):
+    """
+    Состояния для поиска
+    """
     waiting_for_search = State()  # Ждёт ввода пользователя для поиска
 
 

@@ -18,7 +18,7 @@ def rotate_image(image_path, angle):
         rotated_image.save(image_path)
 
 
-class Segmenter:
+class Detector:
     def __init__(self, model_path):
         self.model = YOLO(model_path)
         self.model = YOLO('../v3-965photo-100ep.pt')

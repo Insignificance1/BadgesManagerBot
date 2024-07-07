@@ -12,8 +12,8 @@ from aiogram.types import FSInputFile
 from numpy.compat import long
 
 from bot.settings import keyboard
-from bot.settings.states import ManagerStates, States
-from bot.settings.keyboard import remove_keyboard, format_collection_list_id, format_image_list
+from bot.settings.states import ManagerStates
+from bot.settings.keyboard import remove_keyboard
 from services.statistics_service import generate_user_statistics
 from bot.settings.variables import bot, dp, db
 
@@ -22,13 +22,14 @@ from handlers.instruction_handler import register_instruction_handlers
 from handlers.photo_handler import register_photo_handlers
 from handlers.collection_handler import register_collection_handlers
 from handlers.favorite_handler import register_favorite_handlers
+from handlers.search_handler import register_search_handlers
 
 register_image_handlers(dp)
 register_instruction_handlers(dp)
 register_photo_handlers(dp)
 register_collection_handlers(dp)
 register_favorite_handlers(dp)
-
+register_search_handlers(dp)
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -197,7 +198,7 @@ async def all_time_handler(message: Message, state: FSMContext) -> None:
 
 
 @dp.message(F.text, ManagerStates.input_period_new_users)
-async def all_time_handler(message: Message, state: FSMContext) -> None:
+async def period_time_handler(message: Message, state: FSMContext) -> None:
     db.log_user_activity(message.from_user.id, message.message_id)
     date = message.text
     user_id = message.from_user.id
@@ -243,56 +244,11 @@ async def all_time_handler(message: Message, state: FSMContext) -> None:
             parse_mode='Markdown')
         return
 
-    path = await generate_user_statistics(list_date, user_id)
+    path = await generate_user_statistics(list_date, user_id, 0)
     graphic = FSInputFile(path)
     await bot.send_photo(chat_id=message.chat.id, photo=graphic, reply_markup=keyboard.manager_function_menu)
     await state.clear()
     await state.set_state(ManagerStates.manager)
-
-
-# Начало поиска коллекций и значков
-@dp.message(F.text == "Поиск")
-async def search_handler(message: Message, state: FSMContext) -> None:
-    await message.answer("*Введите название коллекции или значка*",
-                         reply_markup=keyboard.create_main_menu(message.from_user.id),
-                         parse_mode='Markdown')
-    await state.set_state(States.waiting_for_search)
-
-
-@dp.message(F.text, States.waiting_for_search)
-async def search(message: Message, state: FSMContext) -> None:
-    user_id = message.from_user.id
-    # Запускаем параллельную задачу для режима ожидания
-    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
-    search_query = message.text
-    await message.answer("*Результаты поиска\nКоллекции:\n*",
-                         reply_markup=await format_collection_list_id(db.get_list_collection_for_name(user_id, search_query),
-                                                                   'search_collection_'),
-                         parse_mode='Markdown')
-    loading_task.cancel()
-    loading_task = asyncio.create_task(send_loading_message(message.chat.id))
-    await message.answer("*Значки:\n*",
-                         reply_markup=await format_image_list(db.get_all_images_for_name(user_id, search_query),
-                                                                   'show_badge_'),
-                         parse_mode='Markdown')
-    loading_task.cancel()
-    await state.clear()
-
-
-# Режим ожидания
-async def send_loading_message(chat_id):
-    message = await bot.send_message(chat_id, "Ожидайте, бот думает")
-    dots = ""
-    try:
-        while True:
-            if dots == "...":
-                dots = ""
-            else:
-                dots += "."
-            await bot.edit_message_text(f"Ожидайте, бот думает{dots}", chat_id=chat_id, message_id=message.message_id)
-            await asyncio.sleep(0.5)
-    except asyncio.CancelledError:
-        await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
 
 
 @dp.message(F.text == "Назад", ManagerStates.manager)

@@ -1,5 +1,3 @@
-import asyncio
-
 from aiogram import Dispatcher, types
 from aiogram.types import CallbackQuery, FSInputFile
 from aiogram.fsm.context import FSMContext
@@ -9,7 +7,7 @@ from bot.settings.states import ImageStates
 import bot.settings.keyboard as kb
 from bot.settings.keyboard import create_edit_keyboard
 from bot.services.other_service import get_collection_id_and_name
-from bot.settings.variables import bot, db, executor
+from bot.settings.variables import bot, db
 
 
 def register_image_handlers(dp: Dispatcher):

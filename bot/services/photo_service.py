@@ -4,7 +4,7 @@ from aiogram import types
 from aiogram.types import CallbackQuery, Message, FSInputFile, PhotoSize
 from aiogram.fsm.context import FSMContext
 
-from model.segment import rotate_image
+from model.detection import rotate_image
 from model.convert import Converter
 import bot.settings.keyboard as kb
 from bot.settings.keyboard import create_rotate_keyboard

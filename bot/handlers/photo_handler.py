@@ -115,7 +115,7 @@ def register_photo_handlers(dp: Dispatcher):
         """
         Выравнивание изображений
         """
-        db.log_user_activity(message.from_user.id, message.message_id)
+        db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
         data = await state.get_data()
         photo_id = data.get('photo_id')
         edit_idx = data.get('edit_idx')
