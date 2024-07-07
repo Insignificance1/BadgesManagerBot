@@ -4,7 +4,7 @@ from aiogram.exceptions import TelegramBadRequest
 
 from bot.settings.states import ImageStates
 import bot.settings.keyboard as kb
-from bot.settings.keyboard import create_edit_keyboard
+from bot.settings.keyboard import create_edit_keyboard, create_rotate_keyboard
 from bot.settings.variables import bot, db
 
 
@@ -23,16 +23,6 @@ async def handle_next_action(state, edit_idx):
     """
     edit_idx += 1
     await update_state_data(state, edit_idx)
-    return edit_idx
-
-
-async def handle_delete_action(images, edit_idx):
-    """
-    Удаление изображения
-    """
-    db.delete_image(images[edit_idx])
-    del images[edit_idx]
-    edit_idx = max(edit_idx - 1, 0)
     return edit_idx
 
 
@@ -62,6 +52,59 @@ async def handle_count_action(callback_query, state, edit_idx, data):
     await state.update_data(edit_idx=edit_idx, cq_id=callback_query.id, user=callback_query.from_user,
                             chat_ins=callback_query.chat_instance, cq_mes=callback_query.message,
                             mes_to_del=mes_to_del)
+
+
+async def handle_delete_action(images, edit_idx):
+    """
+    Удаление изображения
+    """
+    db.delete_image(images[edit_idx])
+    del images[edit_idx]
+    edit_idx = max(edit_idx - 1, 0)
+    return edit_idx
+
+
+async def handle_rotate_action(callback_query, state, images, idx):
+    """
+    Подготовка к выравниванию изображений
+    """
+    # Создаём inline клавиатуру
+    image_path = images[idx]
+    rotate_keyboard = create_rotate_keyboard(idx, len(images), False)
+    photo_aligned = FSInputFile(str(image_path))
+    name = db.get_image_name(image_path)[0]
+    count = db.get_image_count(image_path)[0]
+    try:
+        await bot.edit_message_media(
+            chat_id=callback_query.message.chat.id,
+            message_id=callback_query.message.message_id,
+            media=types.InputMediaPhoto(media=photo_aligned,
+                                        caption=f'ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ\n{idx + 1}/{len(images)}'
+                                                f'\nНазвание: {name}\nКоличество: {count}'),
+            reply_markup=rotate_keyboard
+        )
+    except TelegramBadRequest:
+        print('[Ошибка] Ничего не поменялось, но на самом деле это не так.')
+    await state.update_data(edit_idx=idx, images=images, is_new=False)
+
+
+async def handle_finish_rotate_action(callback_query, images, idx):
+    image_path = images[idx]
+    edit_keyboard = create_edit_keyboard(idx, len(images))
+    photo_aligned = FSInputFile(str(image_path))
+    name = db.get_image_name(image_path)[0]
+    count = db.get_image_count(image_path)[0]
+    try:
+        await bot.edit_message_media(
+            chat_id=callback_query.message.chat.id,
+            message_id=callback_query.message.message_id,
+            media=types.InputMediaPhoto(media=photo_aligned,
+                                        caption=f'ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ\n{idx + 1}/{len(images)}'
+                                                f'\nНазвание: {name}\nКоличество: {count}'),
+            reply_markup=edit_keyboard
+        )
+    except TelegramBadRequest:
+        print('[Ошибка] Ничего не поменялось, но на самом деле это не так.')
 
 
 async def handle_exit_action(callback_query):

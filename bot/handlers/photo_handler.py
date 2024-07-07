@@ -99,27 +99,27 @@ def register_photo_handlers(dp: Dispatcher):
         num_objects = data.get('num_objects')
         # Устанавливаем начальный индекс для первого изображения
         idx = 0
-        # Указываем путь к выровненному изображению
-        aligned_img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
-        # Создаём inline клавиатуры
+        images = []
+        for i in range(num_objects):
+            images.append(f"../Photo/noBg/{photo_id}_{i}.png")
+        # Создаём inline клавиатуру
         edit_keyboard = create_rotate_keyboard(idx, num_objects)
-        photo_aligned = FSInputFile(aligned_img_path)
+        photo_aligned = FSInputFile(images[0])
 
         await remove_keyboard(message)
         await bot.send_photo(chat_id=message.chat.id, photo=photo_aligned, reply_markup=edit_keyboard,
                              caption='ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ')
-        await state.update_data(edit_idx=idx)
+        await state.update_data(edit_idx=idx, images=images)
 
-    @dp.callback_query(lambda c: c.data.startswith('rotate_'))
+    @dp.callback_query(lambda c: c.data.startswith('rotate_') and c.data != 'rotate_finish')
     async def process_rotate_callback(callback_query: CallbackQuery, state: FSMContext) -> None:
         """
         Выравнивание изображений
         """
         db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
         data = await state.get_data()
-        photo_id = data.get('photo_id')
+        images = data.get('images')
         edit_idx = data.get('edit_idx')
-        num_objects = data.get('num_objects')
 
         action = callback_query.data.split('_')[-1]
 
@@ -134,10 +134,10 @@ def register_photo_handlers(dp: Dispatcher):
             # Парсим угол поворота
             angle = photo_service.parse_rotation_angle(action)
             # Обработка поворота изображения
-            await photo_service.process_image_rotation(photo_id, edit_idx, angle)
+            await photo_service.process_image_rotation(images, edit_idx, angle)
 
         # Обновляем изображение
-        await photo_service.update_image(photo_id, edit_idx, num_objects, callback_query)
+        await photo_service.update_image(images, edit_idx, callback_query, data['is_new'])
         await state.update_data(edit_idx=edit_idx)
         await callback_query.answer()
 

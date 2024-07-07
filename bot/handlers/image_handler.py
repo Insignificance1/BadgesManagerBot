@@ -55,18 +55,35 @@ def register_image_handlers(dp: Dispatcher):
             edit_idx = await image_service.handle_prev_action(state, edit_idx)
         elif action == 'next':
             edit_idx = await image_service.handle_next_action(state, edit_idx)
-        elif action == 'del':
-            edit_idx = await image_service.handle_delete_action(images, edit_idx)
         elif action == 'name':
             await image_service.handle_name_action(callback_query, state, edit_idx, data)
             return
         elif action == 'count':
             await image_service.handle_count_action(callback_query, state, edit_idx, data)
             return
+        elif action == 'rotate':
+            await image_service.handle_rotate_action(callback_query, state, images, edit_idx)
+            return
+        elif action == 'del':
+            edit_idx = await image_service.handle_delete_action(images, edit_idx)
         elif action == 'exit':
             await image_service.handle_exit_action(callback_query)
             await state.clear()
             return
+
+        # Редактируем сообщение с изображением
+        await image_service.edit_image_message(callback_query, images, edit_idx)
+        await state.update_data(edit_idx=edit_idx, images=images)
+
+    @dp.callback_query(lambda c: c.data == 'rotate_finish')
+    async def process_rotate_finish_callback(callback_query: CallbackQuery, state: FSMContext) -> None:
+        """
+        Возвращение к основной клавиатуре редактирования изображений
+        """
+        db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
+        data = await state.get_data()
+        images = data.get('images')
+        edit_idx = data.get('edit_idx')
 
         # Редактируем сообщение с изображением
         await image_service.edit_image_message(callback_query, images, edit_idx)
