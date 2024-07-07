@@ -210,7 +210,7 @@ def create_main_menu(user_id):
     return main_menu
 
 
-def create_rotate_keyboard(idx, num_objects):
+def create_rotate_keyboard(idx, num_objects, is_new=True):
     """
     Создание клавиатуры для вращения изображений
     """
@@ -253,14 +253,15 @@ def create_rotate_keyboard(idx, num_objects):
         [
             InlineKeyboardButton(text="↶ 90°", callback_data="rotate_+90"),
             InlineKeyboardButton(text="↷ 90°", callback_data="rotate_-90"),
-        ],
-        [
-            InlineKeyboardButton(text="Завершить редактирование", callback_data="rotate_continue"),
-        ],
-        [
-            InlineKeyboardButton(text="В главное меню", callback_data="rotate_exit"),
-        ],
+        ]
     ])
+
+    if is_new:
+        buttons.append([InlineKeyboardButton(text="Завершить редактирование", callback_data="rotate_continue")])
+    else:
+        buttons.append([InlineKeyboardButton(text="Завершить редактирование", callback_data="rotate_finish")])
+
+    buttons.append([InlineKeyboardButton(text="В главное меню", callback_data="rotate_exit")])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons, row_width=1)
     return keyboard

@@ -1,8 +1,7 @@
 import asyncio
 
 from aiogram import types
-from aiogram.types import CallbackQuery, Message, FSInputFile, PhotoSize
-from aiogram.fsm.context import FSMContext
+from aiogram.types import FSInputFile
 
 from model.detection import rotate_image
 from model.convert import Converter
@@ -69,28 +68,33 @@ def parse_rotation_angle(action):
         raise ValueError("Обнаружено несуществующее действие")
 
 
-async def process_image_rotation(photo_id, edit_idx, angle):
+async def process_image_rotation(images, edit_idx, angle):
     """
     Обработка поворота изображения
     """
-    image_path = f"../Photo/noBg/{photo_id}_{edit_idx}.png"
+    image_path = images[edit_idx]
     if angle != 0:
         rotate_image(image_path, angle)
 
 
-async def update_image(photo_id, edit_idx, num_objects, callback_query):
+async def update_image(images, edit_idx, callback_query, is_new):
     """
     Обновление изображения inline клавиатуры
     """
-    image_path = f"../Photo/noBg/{photo_id}_{edit_idx}.png"
-    edit_keyboard = create_rotate_keyboard(edit_idx, num_objects)
+    image_path = images[edit_idx]
+    edit_keyboard = create_rotate_keyboard(edit_idx, len(images), is_new)
     photo_aligned = FSInputFile(image_path)
+    caption = 'ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ'
+    if not is_new:
+        name = db.get_image_name(image_path)[0]
+        count = db.get_image_count(image_path)[0]
+        caption = f'ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ\n{edit_idx + 1}/{len(images)}\nНазвание: {name}\nКоличество: {count}'
 
     await bot.edit_message_media(
         chat_id=callback_query.message.chat.id,
         message_id=callback_query.message.message_id,
         media=types.InputMediaPhoto(media=photo_aligned,
-                                    caption='ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ'),
+                                    caption=caption),
         reply_markup=edit_keyboard
     )
 
