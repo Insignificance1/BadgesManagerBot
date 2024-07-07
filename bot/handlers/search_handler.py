@@ -87,9 +87,9 @@ def register_search_handlers(dp: Dispatcher):
         name = db.get_image_name(path)[0]
         count = db.get_image_count(path)[0]
         await bot.send_photo(chat_id=callback_query.message.chat.id, photo=FSInputFile(path),
-                             reply_markup=create_edit_keyboard(0, len(formatted_images)),
+                             reply_markup=create_edit_keyboard(image_id-1, len(formatted_images)),
                              caption=f'ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ\n{image_id}/{len(images)}'
                                      f'\nНазвание: {name}\nКоличество: {count}')
         await bot.delete_message(chat_id=callback_query.message.chat.id,
                                  message_id=callback_query.message.message_id)
-        await state.update_data(images=formatted_images, edit_idx=0, mes_to_del=[])
+        await state.update_data(images=formatted_images, edit_idx=image_id-1, mes_to_del=[])
