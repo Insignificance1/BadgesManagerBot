@@ -5,12 +5,10 @@ from aiogram import Dispatcher, F
 from aiogram.types import CallbackQuery, FSInputFile, Message
 from aiogram.fsm.context import FSMContext
 
-from model.convert import Converter
-
 import bot.settings.keyboard as kb
 from bot.settings.keyboard import create_rotate_keyboard, remove_keyboard
 from bot.settings.states import PhotoStates
-from bot.settings.variables import bot, segmenter, db, executor
+from bot.settings.variables import bot, segmenter, executor
 from bot.services.task_manager import task_manager
 
 
@@ -74,7 +72,8 @@ def register_photo_handlers(dp: Dispatcher):
         # Завершаем режима ожидания
         await task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
         if num_objects == 0:
-            await message.reply("Значков не обнаружено.", reply_markup=kb.main_menu)
+            main_menu = kb.create_main_menu(message.from_user.id)
+            await message.reply("Значков не обнаружено.", reply_markup=main_menu)
         else:
             # Выводим нарезанных фотографий
             for idx in range(num_objects):
@@ -137,14 +136,15 @@ def register_photo_handlers(dp: Dispatcher):
         await callback_query.answer()
 
     @dp.message(F.text == "Продолжить", PhotoStates.align_function_photo)
-    async def continue_handler(message: Message) -> None:
+    async def continue_handler(message: Message, state: FSMContext) -> None:
         """
         Продолжение после получения значков после нарезки
         """
         await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
         await message.answer("Коллекция полная?", reply_markup=kb.yes_no_menu)
+        await state.set_state(PhotoStates.yes_or_no)
 
-    @dp.message(F.text == "Да")
+    @dp.message(F.text == "Да", PhotoStates.yes_or_no)
     async def yes_handler(message: Message, state: FSMContext) -> None:
         """
         Обработка для полной коллекции после нарезки
@@ -162,39 +162,23 @@ def register_photo_handlers(dp: Dispatcher):
         data = await state.get_data()
         try:
             # Добавляем коллекцию в БД
-            result = await add_collection_to_db(message.from_user.id, message.text)
+            result = await photo_service.add_collection_to_db(message.from_user.id, message.text)
             reply, id_collection = result
             num_objects = data.get('num_objects')
             photo_id = data.get('photo_id')
             # Добавляем изображения в коллекцию
-            await add_images_to_collection(message.from_user.id, photo_id, num_objects, id_collection)
+            await photo_service.add_images_to_collection(message.from_user.id, photo_id, num_objects, id_collection)
             await message.reply(reply, reply_markup=main_menu)
             # Завершаем режим ожидания
             await task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
             await state.clear()
         except Exception as e:
             await message.reply(str(e), reply_markup=main_menu)
+            await state.set_state(PhotoStates.yes_or_no)
             await yes_handler(message, state)
             await task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
 
-    async def add_collection_to_db(user_id: int, collection_name: str) -> tuple:
-        """
-        Добавление коллекции в БД
-        """
-        loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(executor, db.add_collection, user_id, collection_name)
-        return result
-
-    async def add_images_to_collection(user_id: int, photo_id: int, num_objects: int, id_collection: int) -> None:
-        """
-        Добавление изображений в коллекцию
-        """
-        loop = asyncio.get_running_loop()
-        for idx in range(min(num_objects, 200)):
-            img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
-            await loop.run_in_executor(executor, db.insert_image, user_id, img_path, id_collection)
-
-    @dp.message(F.text == "Нет")
+    @dp.message(F.text == "Нет", PhotoStates.yes_or_no)
     async def no_handler(message: Message, state: FSMContext) -> None:
         """
         Обработка неполной коллекции после нарезки
@@ -206,26 +190,9 @@ def register_photo_handlers(dp: Dispatcher):
         num_objects = data.get('num_objects')
         zip_path = f'../Photo/ZIP/{photo_id}.zip'
 
-        await create_zip_archive(photo_id, num_objects, zip_path)
-        await send_zip_archive(message, zip_path)
+        await photo_service.create_zip_archive(photo_id, num_objects, zip_path)
+        await photo_service.send_zip_archive(message, zip_path)
 
         await task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
         await state.clear()
         os.remove(zip_path)
-
-    async def create_zip_archive(photo_id: int, num_objects: int, zip_path: str) -> None:
-        """
-        Создание архива с изображениями
-        """
-        converter = Converter()
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(executor, converter.convert_to_zip, photo_id, num_objects, zip_path)
-
-    async def send_zip_archive(message: Message, zip_path: str) -> None:
-        """
-        Отправка ZIP архива пользователю
-        """
-        zip_file = FSInputFile(zip_path)
-        main_menu = kb.create_main_menu(message.from_user.id)
-        await message.reply("В таком случае держите архив с размеченными значками.", reply_markup=main_menu)
-        await bot.send_document(chat_id=message.chat.id, document=zip_file)

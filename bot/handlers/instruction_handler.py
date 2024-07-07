@@ -3,6 +3,7 @@ from aiogram.types import Message
 from aiogram import F
 
 import bot.settings.keyboard as kb
+from bot.settings.variables import db
 
 
 def register_instruction_handlers(dp: Dispatcher):
@@ -14,6 +15,7 @@ def register_instruction_handlers(dp: Dispatcher):
         """
         Вывод инструкции
         """
+        db.log_user_activity(message.from_user.id, message.message_id)
         instruction = (
             "*Рекомендации по улучшению качества нарезки:*\n"
             "1. Сделайте фотографию в высоком разрешении.\n"
@@ -33,6 +35,7 @@ def register_instruction_handlers(dp: Dispatcher):
         """
         Обращение к ТП
         """
+        db.log_user_activity(message.from_user.id, message.message_id)
         answer = (
             "Если у вас есть какие-то вопросы, вы можете обратиться к:\n\n"
             "@insignificance123\n"
@@ -40,4 +43,5 @@ def register_instruction_handlers(dp: Dispatcher):
             "@KatyaPark11\n"
             "@sech14"
         )
-        await message.answer(answer, reply_markup=kb.main_menu)
+        main_menu = kb.create_main_menu(message.from_user.id)
+        await message.answer(answer, reply_markup=main_menu)

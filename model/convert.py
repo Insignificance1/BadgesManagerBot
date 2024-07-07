@@ -1,4 +1,3 @@
-from PIL import Image
 from fpdf import FPDF
 
 import zipfile
@@ -86,7 +85,6 @@ class Converter:
 
                 # После каждой строки, смещаем y на 10
                 y += 10
-
 
             # Возвращаем y на начальную позицию для следующей строки
             y -= len(lines) * 10  # Возвращаемся на количество строк, умноженное на высоту строки

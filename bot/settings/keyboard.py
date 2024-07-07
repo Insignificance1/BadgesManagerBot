@@ -16,20 +16,10 @@ function_photo_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Промежуточная клавиатура между нарезкой фоток и отправкой их
+# Клавиатура для возможного выравнивания изображений
 align_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Выровнять")],
-        [KeyboardButton(text="Продолжить")],
-        [KeyboardButton(text="Назад")]
-    ],
-    resize_keyboard=True
-)
-
-# Клавиатура после перехода в выравнивание
-function3_menu = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="Редактировать")],
         [KeyboardButton(text="Продолжить")],
         [KeyboardButton(text="Назад")]
     ],
@@ -49,7 +39,7 @@ yes_no_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Клавиавтура коллекций
+# Клавиатура коллекций
 collections_menu = ReplyKeyboardMarkup(
     keyboard=[
         [
@@ -84,7 +74,7 @@ favorite_collections_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Клавиатура для коллекций
+# Клавиатура для всех коллекций
 all_collections_menu = ReplyKeyboardMarkup(
     keyboard=[
         [
@@ -131,7 +121,7 @@ manager_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Меню функций менеджера
+# Клавиатура функций менеджера
 manager_function_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Статистика нагрузки")],
@@ -141,6 +131,7 @@ manager_function_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+# Клавиатура выбора периода статистики
 time_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="За период")],
@@ -273,3 +264,37 @@ async def remove_keyboard(message: Message) -> None:
     """
     await message.answer("ㅤ", reply_markup=ReplyKeyboardRemove())
     await bot.delete_message(message.chat.id, message.message_id + 1)
+
+
+# Форматирование списка коллекций в InlineKeyboard
+async def format_collection_list(collections, prefix):
+    new_keyboard = []
+    if collections not in ['Нет коллекций', 'Нет избранных коллекций']:
+        for i, (_, name) in enumerate(collections, start=1):
+            button_text = f"{i}. {name}"
+            callback_data = f"{prefix}{i}"
+            new_keyboard.append([InlineKeyboardButton(text=button_text, callback_data=callback_data)])
+    new_keyboard.append([InlineKeyboardButton(text="Назад", callback_data="main_menu")])
+    return InlineKeyboardMarkup(inline_keyboard=new_keyboard)
+
+
+async def format_collection_list_id(collections, prefix):
+    new_keyboard = []
+    if collections not in ['Нет коллекций', 'Нет избранных коллекций']:
+        for i, (_, name) in enumerate(collections, start=1):
+            button_text = f"{i}. {name}"
+            callback_data = f"{prefix}{_}"
+            new_keyboard.append([InlineKeyboardButton(text=button_text, callback_data=callback_data)])
+    new_keyboard.append([InlineKeyboardButton(text="Назад", callback_data="main_menu")])
+    return InlineKeyboardMarkup(inline_keyboard=new_keyboard)
+
+
+async def format_image_list(collections, prefix):
+    new_keyboard = []
+    if collections not in ['Нет значков']:
+        for i, (_, name) in enumerate(collections, start=1):
+            button_text = f"{i}. {name}"
+            callback_data_image = f"{prefix}{_}"
+            new_keyboard.append([InlineKeyboardButton(text=button_text, callback_data=callback_data_image)])
+    new_keyboard.append([InlineKeyboardButton(text="Назад", callback_data="main_menu")])
+    return InlineKeyboardMarkup(inline_keyboard=new_keyboard)
