@@ -4,11 +4,12 @@ from aiogram import types
 from aiogram.types import CallbackQuery, Message, FSInputFile, PhotoSize
 from aiogram.fsm.context import FSMContext
 
+from model.segment import rotate_image
+from model.convert import Converter
 import bot.settings.keyboard as kb
 from bot.settings.keyboard import create_rotate_keyboard
-from model.segment import rotate_image
 from bot.settings.states import PhotoStates
-from bot.settings.variables import bot, segmenter
+from bot.settings.variables import bot, db, segmenter, executor
 
 
 async def download_photo(message: Message) -> (PhotoSize, str):
@@ -92,3 +93,41 @@ async def update_image(photo_id: PhotoSize, edit_idx: int, num_objects: int, cal
                                     caption='ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ'),
         reply_markup=edit_keyboard
     )
+
+
+async def add_collection_to_db(user_id: int, collection_name: str) -> tuple:
+    """
+    Добавление коллекции в БД
+    """
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(executor, db.add_collection, user_id, collection_name)
+    return result
+
+
+async def add_images_to_collection(user_id: int, photo_id: int, num_objects: int, id_collection: int) -> None:
+    """
+    Добавление изображений в коллекцию
+    """
+    loop = asyncio.get_running_loop()
+    for idx in range(min(num_objects, 200)):
+        img_path = f"../Photo/noBg/{photo_id}_{idx}.png"
+        await loop.run_in_executor(executor, db.insert_image, user_id, img_path, id_collection)
+
+
+async def create_zip_archive(photo_id: int, num_objects: int, zip_path: str) -> None:
+    """
+    Создание архива с изображениями
+    """
+    converter = Converter()
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(executor, converter.convert_to_zip, photo_id, num_objects, zip_path)
+
+
+async def send_zip_archive(message: Message, zip_path: str) -> None:
+    """
+    Отправка ZIP архива пользователю
+    """
+    zip_file = FSInputFile(zip_path)
+    main_menu = kb.create_main_menu(message.from_user.id)
+    await message.reply("В таком случае держите архив с размеченными значками.", reply_markup=main_menu)
+    await bot.send_document(chat_id=message.chat.id, document=zip_file)
