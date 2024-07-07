@@ -236,7 +236,8 @@ def register_collection_handlers(dp: Dispatcher):
         user_id = message.from_user.id
         await remove_keyboard(message)
         await message.answer("*Выберите коллекцию для выгрузки в PDF*\n",
-                             reply_markup=await format_collection_list(db.get_list_collection(user_id), 'pdf_null_'),
+                             reply_markup=await format_collection_list(db.get_list_collection(user_id),
+                                                                       'pdf_null_'),
                              parse_mode='Markdown')
 
     @dp.callback_query(lambda c: c.data.startswith("pdf_collection_") or c.data.startswith("pdf_favorite_") or

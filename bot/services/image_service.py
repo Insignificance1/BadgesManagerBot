@@ -96,7 +96,8 @@ async def edit_image_message(callback_query, images, edit_idx):
             chat_id=callback_query.message.chat.id,
             message_id=callback_query.message.message_id,
             media=types.InputMediaPhoto(media=photo_aligned,
-                                        caption=f'ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ\nНазвание: {name}\nКоличество: {count}'),
+                                        caption=f'ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ\n{edit_idx + 1}/{len(images)}'
+                                                f'\nНазвание: {name}\nКоличество: {count}'),
             reply_markup=edit_keyboard
         )
     except TelegramBadRequest:

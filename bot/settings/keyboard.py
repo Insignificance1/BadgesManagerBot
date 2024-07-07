@@ -171,7 +171,10 @@ def create_edit_keyboard(idx, num_objects):
         ])
 
     buttons.extend([
-        [InlineKeyboardButton(text="Удалить", callback_data="image_del")],
+        [
+            InlineKeyboardButton(text="🔄", callback_data="image_rotate"),
+            InlineKeyboardButton(text="🗑️", callback_data="image_del")
+        ],
         [InlineKeyboardButton(text="Выход", callback_data="image_exit")]
     ])
 
