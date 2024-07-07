@@ -73,14 +73,6 @@ class DataBase:
             values ('{id_user}','{path}', '{id_collection}')
             """, "[INFO] Image was added", True)
 
-    #    def add_unique_collection(self, id_user, name):
-    #        if 3 <= len(name) <= 100 and not self.contains_collection_name(id_user, name):
-    #            query = f"""insert into {schema_name}.collections (id_user, name) values (%s, %s) returning id"""
-    #            result = self.exec_query(query, f"[INFO] Collection '{name}' was added", True)
-    #            return result[0][0]
-    #        else:
-    #            raise Exception("[Ошибка] Коллекция с таким именем уже существует.")
-
     # Добавление коллекции
     def add_collection(self, id_user, name_collection):
         if 3 <= len(name_collection) <= 55 and not self.contains_collection_name(id_user, name_collection):
@@ -191,10 +183,23 @@ class DataBase:
         return self.exec_query(f"""select name from {schema_name}.images where path='{path}'""",
                                "[INFO] Image name was received")
 
+    # Получение id изображения по указанному пути
+    def get_image_id(self, path):
+        return self.exec_query(f"""select id from {schema_name}.images where path='{path}'""",
+                               "[INFO] Image name was received")
+
     # Получение количества значков по указанному пути
     def get_image_count(self, path):
         return self.exec_query(f"""select count from {schema_name}.images where path='{path}'""",
                                "[INFO] Image count was received")
+
+    def get_image(self, id_image):
+        return self.exec_query(f"""select path from {schema_name}.images where (id={id_image})""",
+                               "[INFO] Collection path image", True)
+
+    def get_id_collection_by_image(self, id_image):
+        query = f"""select id_collection from {schema_name}.images where (id={id_image})"""
+        return self.exec_query(query, "[INFO] Getting id_collection by id_image", True)
 
     # Изменение флага избранности для выбранной коллекции
     def edit_favorites(self, id_collection, is_favorites):
@@ -274,10 +279,6 @@ class DataBase:
             return "Нет коллекций"
         else:
             return message
-
-    def get_image(self, id_image):
-        return self.exec_query(f"""select path from {schema_name}.images where (id={id_image})""",
-                               "[INFO] Collection path image", True)
 
     def get_all_images_for_name(self, id_user, name):
         message = self.exec_query(
