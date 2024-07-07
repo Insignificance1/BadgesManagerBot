@@ -1,4 +1,5 @@
 import os
+import shutil
 
 from ultralytics import YOLO
 import numpy as np
@@ -66,6 +67,9 @@ class Detector:
             # Добавление дополнительных отступов вокруг минимального квадрата
             final_image = self.add_padding(min_square_image, padding)
             final_image.save(output_image_path)
+            shutil.rmtree('../Photo/cut')
+            shutil.rmtree('../Photo/auto_rotated')
+            shutil.rmtree('../Photo/original')
 
         return num_objects
 
@@ -101,13 +105,14 @@ class Detector:
         return img
 
     def find_minimal_square(self, image: Image.Image):
+        os.makedirs('../Photo/auto_rotated/', exist_ok=True)
         min_size = float('inf')
         optimal_img = image
 
         for angle in range(0, 360, 3):
             rotated = self.trim_whitespace(image.rotate(angle, expand=True))
-            open('../test/rotated_' + str(angle) + '.png', 'a').close()
-            rotated.save('../test/rotated_' + str(angle) + '.png')
+            open('../Photo/auto_rotated/rotated_' + str(angle) + '.png', 'a').close()
+            rotated.save('../Photo/auto_rotated/rotated_' + str(angle) + '.png')
             width, height = rotated.size
             area = width * height
             if area < min_size:

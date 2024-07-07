@@ -5,7 +5,7 @@ from bot.settings.variables import bot
 from bot.services.other_service import get_collection_id_and_name
 
 
-async def get_collection_info(callback_query: CallbackQuery, is_favorite: bool) -> tuple:
+async def get_collection_info(callback_query, is_favorite):
     """
     Получение id коллекции и её названия
     """
@@ -14,7 +14,7 @@ async def get_collection_info(callback_query: CallbackQuery, is_favorite: bool) 
     return collection_id, name
 
 
-async def send_favorite_status_message(callback_query: CallbackQuery, name: str, is_favorite: bool) -> None:
+async def send_favorite_status_message(callback_query, name, is_favorite):
     """
     Отправка уведомления пользователю о смене флага избранности
     """

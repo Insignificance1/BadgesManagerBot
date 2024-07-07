@@ -149,7 +149,12 @@ def create_edit_keyboard(idx, num_objects):
     buttons = [[InlineKeyboardButton(text="Поменять название", callback_data="image_name")],
                [InlineKeyboardButton(text="Поменять количество", callback_data="image_count")]]
 
-    if idx == 0:
+    if num_objects == 1:
+        buttons.append([
+            InlineKeyboardButton(text="✖", callback_data="rotate_cross"),
+            InlineKeyboardButton(text="✖", callback_data="rotate_right"),
+        ])
+    elif idx == 0:
         buttons.append([
             InlineKeyboardButton(text="✖", callback_data="image_cross"),
             InlineKeyboardButton(text="➡️", callback_data="image_next")
