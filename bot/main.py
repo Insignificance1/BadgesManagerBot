@@ -251,13 +251,6 @@ async def all_time_handler(message: Message, state: FSMContext) -> None:
     await state.set_state(ManagerStates.manager)
 
 
-# Выбор действия над коллекциями
-@dp.message(F.text == "Коллекции")
-async def collections_handler(message: Message) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    await message.reply("Выберите в меню желаемое действие.", reply_markup=keyboard.collections_menu)
-
-
 # Выбор действия над избранными коллекциями
 @dp.message(F.text == "Избранное")
 async def favourites_list_handler(message: Message, state: FSMContext) -> None:

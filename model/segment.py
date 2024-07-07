@@ -4,7 +4,7 @@ from ultralytics import YOLO
 import numpy as np
 import cv2
 from rembg import remove
-from PIL import Image, ImageChops
+from PIL import Image
 
 
 def rotate_image(image_path, angle):

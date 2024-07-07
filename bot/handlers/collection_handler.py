@@ -24,6 +24,7 @@ def register_collection_handlers(dp: Dispatcher):
         """
         Выбор действия над коллекциями
         """
+        db.log_user_activity(message.from_user.id, message.message_id)
         await message.reply("Выберите в меню желаемое действие.", reply_markup=kb.collections_menu)
 
     @dp.message(F.text == "Весь список")
