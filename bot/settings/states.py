@@ -3,20 +3,6 @@ from aiogram.fsm.state import State, StatesGroup
 
 # Состояния FSM
 class States(StatesGroup):
-    waiting_for_zip_create = State()  # Состояние ожидания ZIP-файла при создании коллекции
-    waiting_for_zip_add = State()  # Состояние ожидания ZIP-файла при пополнении коллекции
-    change_collection_name = State()  # Ожидание ввода названия коллекции
-    add_badge = State()  # Ожидание фото значка в модуле редактирования
-    state_list = State()  # Состояние считывания сообщения с номером коллекции
-    state_favorite_list = State()  # Состояние считывания сообщения с номером избранной коллекции
-    state_add_favorite_list = State()  # Состояние считывания сообщения с номером коллекции для добавления в избранное
-    state_del_favorite_list = State()  # Состояние считывания сообщения с номером коллекции для удаления из избранного
-    change_favorite_collection_name = State()  # Состояние ожидания ввода названия избранной коллекции
-    state_back = State()  # Ждёт кнопки назад
-    state_del_collection = State()  # Состояние ожидания удаления коллекции
-    align_state = State()
-    waiting_for_name_collection = State()
-    waiting_for_name_favorite = State()
     waiting_for_search = State()  # Ждёт ввода пользователя для поиска
 
 
