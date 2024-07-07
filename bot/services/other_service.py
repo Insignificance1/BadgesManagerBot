@@ -15,8 +15,6 @@ async def get_collection_id_and_name(callback_query, loop=None, type_id=1):
         db_message = await loop.run_in_executor(executor, db.get_list_collection, user_id)
     elif type_id == 2:
         db_message = await loop.run_in_executor(executor, db.get_list_favorites, user_id)
-    elif type_id == 3:
-        db_message = await loop.run_in_executor(executor, db.get_list_collection, user_id)
     else:
         db_message = await loop.run_in_executor(executor, db.get_list_favorites, user_id, False)
     collection_id, name = db_message[int(callback_query.data.split("_")[2]) - 1]

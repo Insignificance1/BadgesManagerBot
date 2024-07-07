@@ -1,12 +1,9 @@
 import asyncio
 import zipfile
 import os
-from typing import List, Callable
 
-from aiogram.methods.send_message import SendMessage
-from aiogram.types import Message, File, FSInputFile, CallbackQuery
+from aiogram.types import FSInputFile
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.fsm.context import FSMContext
 
 from model.convert import Converter
 import bot.settings.keyboard as kb

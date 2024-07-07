@@ -268,7 +268,7 @@ class DataBase:
     # коллекции по имени
     def get_list_collection_for_name(self, id_user, name):
         message = self.exec_query(
-            f"""select id, name from {schema_name}.collections where (id_user={id_user} and name='{name}')""",
+            f"select id, name from {schema_name}.collections where (id_user={id_user} and name ilike '%{name}%')",
             "[INFO] Collection list were received", True)
         if len(message) == 0:
             return "Нет коллекций"
@@ -281,7 +281,7 @@ class DataBase:
 
     def get_all_images_for_name(self, id_user, name):
         message = self.exec_query(
-            f"""select id, name from {schema_name}.images where (id_user={id_user} and name='{name}')""",
+            f"""select id, name from {schema_name}.images where (id_user={id_user} and name ilike '%{name}%')""",
             "[INFO] Collection list were received", True)
         if len(message) == 0:
             return "Нет значков"
