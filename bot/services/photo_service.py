@@ -12,7 +12,7 @@ from bot.settings.states import PhotoStates
 from bot.settings.variables import bot, db, segmenter, executor
 
 
-async def download_photo(message: Message) -> (PhotoSize, str):
+async def download_photo(message):
     """
     Загрузка фото
     """
@@ -23,7 +23,7 @@ async def download_photo(message: Message) -> (PhotoSize, str):
     return photo_id, image_path
 
 
-async def update_state_and_reply(message: Message, state: FSMContext, photo_id: PhotoSize, image_path: str) -> None:
+async def update_state_and_reply(message, state, photo_id, image_path):
     """
     Обновление состояния и ответ пользователю о получении фото
     """
@@ -33,7 +33,7 @@ async def update_state_and_reply(message: Message, state: FSMContext, photo_id: 
     await state.set_state(PhotoStates.choose_function_photo)
 
 
-async def count_objects(image_path: str) -> int:
+async def count_objects(image_path):
     """
     Подсчёт объектов на фото
     """
@@ -42,7 +42,7 @@ async def count_objects(image_path: str) -> int:
     return num_objects
 
 
-async def handle_others(action: str, callback_query: CallbackQuery) -> None:
+async def handle_others(action, callback_query):
     """
     Обработка других действий (продолжение и выход)
     """
@@ -59,7 +59,7 @@ async def handle_others(action: str, callback_query: CallbackQuery) -> None:
     await callback_query.answer()
 
 
-def parse_rotation_angle(action: str) -> int:
+def parse_rotation_angle(action):
     """
     Парсинг угла поворота
     """
@@ -69,7 +69,7 @@ def parse_rotation_angle(action: str) -> int:
         raise ValueError("Обнаружено несуществующее действие")
 
 
-async def process_image_rotation(photo_id: PhotoSize, edit_idx: int, angle: int) -> None:
+async def process_image_rotation(photo_id, edit_idx, angle):
     """
     Обработка поворота изображения
     """
@@ -78,7 +78,7 @@ async def process_image_rotation(photo_id: PhotoSize, edit_idx: int, angle: int)
         rotate_image(image_path, angle)
 
 
-async def update_image(photo_id: PhotoSize, edit_idx: int, num_objects: int, callback_query: CallbackQuery) -> None:
+async def update_image(photo_id, edit_idx, num_objects, callback_query):
     """
     Обновление изображения inline клавиатуры
     """
@@ -95,7 +95,7 @@ async def update_image(photo_id: PhotoSize, edit_idx: int, num_objects: int, cal
     )
 
 
-async def add_collection_to_db(user_id: int, collection_name: str) -> tuple:
+async def add_collection_to_db(user_id, collection_name):
     """
     Добавление коллекции в БД
     """
@@ -104,7 +104,7 @@ async def add_collection_to_db(user_id: int, collection_name: str) -> tuple:
     return result
 
 
-async def add_images_to_collection(user_id: int, photo_id: int, num_objects: int, id_collection: int) -> None:
+async def add_images_to_collection(user_id, photo_id, num_objects, id_collection):
     """
     Добавление изображений в коллекцию
     """
@@ -114,7 +114,7 @@ async def add_images_to_collection(user_id: int, photo_id: int, num_objects: int
         await loop.run_in_executor(executor, db.insert_image, user_id, img_path, id_collection)
 
 
-async def create_zip_archive(photo_id: int, num_objects: int, zip_path: str) -> None:
+async def create_zip_archive(photo_id, num_objects, zip_path):
     """
     Создание архива с изображениями
     """
@@ -123,7 +123,7 @@ async def create_zip_archive(photo_id: int, num_objects: int, zip_path: str) -> 
     await loop.run_in_executor(executor, converter.convert_to_zip, photo_id, num_objects, zip_path)
 
 
-async def send_zip_archive(message: Message, zip_path: str) -> None:
+async def send_zip_archive(message, zip_path):
     """
     Отправка ZIP архива пользователю
     """

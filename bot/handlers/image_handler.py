@@ -23,6 +23,7 @@ def register_image_handlers(dp: Dispatcher):
         """
         Создание inline клавиатуры для редактирования изображений
         """
+        db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
         # Получаем id и название коллекции
         type_id = 2 if callback_query.data.startswith("show_favorite_") else 1
         collection_id = (await get_collection_id_and_name(callback_query, type_id=type_id))[0]
@@ -44,6 +45,7 @@ def register_image_handlers(dp: Dispatcher):
         """
         Создание inline клавиатуры для редактирования изображений
         """
+        db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
         # Получаем id и название коллекции
         collection_id = int(callback_query.data.split("_")[2])
         # Получаем изображения в выбранной коллекции
@@ -65,8 +67,9 @@ def register_image_handlers(dp: Dispatcher):
         """
         Создание inline клавиатуры для редактирования изображения
         """
+        db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
         id = int(callback_query.data.split("_")[2])
-        # получаем изображение
+        # Получаем изображение
         image = db.get_image(id)
         path = str(image[0][0])
         # Отправляем inline клавиатуру с первым изображением
@@ -85,6 +88,7 @@ def register_image_handlers(dp: Dispatcher):
         """
         Обработка действия над изображением
         """
+        db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
         data = await state.get_data()
         images = data.get('images')
         edit_idx = data.get('edit_idx')
@@ -105,6 +109,7 @@ def register_image_handlers(dp: Dispatcher):
             return
         elif action == 'exit':
             await image_service.handle_exit_action(callback_query)
+            await state.clear()
             return
 
         # Редактируем сообщение с изображением
@@ -116,6 +121,7 @@ def register_image_handlers(dp: Dispatcher):
         """
         Обработка ввода нового названия значка
         """
+        db.log_user_activity(message.from_user.id, message.message_id)
         new_name = message.text
         data = await state.get_data()
         mes_to_del = data.get('mes_to_del', [])
@@ -130,8 +136,7 @@ def register_image_handlers(dp: Dispatcher):
                 await handle_successful_name_update(message, state, data['cq_id'], data['user'], data['chat_ins'],
                                                     data['cq_mes'], new_name, mes_to_del)
             except Exception as e:
-                main_menu = kb.create_main_menu(message.from_user.id)
-                await message.reply(str(e), reply_markup=main_menu)
+                await message.reply(str(e), reply_markup=kb.collections_menu)
                 await handle_successful_name_update(message, state, data['cq_id'], data['user'], data['chat_ins'],
                                                     data['cq_mes'], new_name, mes_to_del)
         else:
@@ -155,6 +160,7 @@ def register_image_handlers(dp: Dispatcher):
         """
         Обработка ввода нового количества значков
         """
+        db.log_user_activity(message.from_user.id, message.message_id)
         data = await state.get_data()
         mes_to_del = data.get('mes_to_del', [])
         mes_to_del.append(message.message_id)
@@ -165,12 +171,11 @@ def register_image_handlers(dp: Dispatcher):
                     # Обновляем количество значков в БД
                     image_path = data['images'][data['edit_idx']]
                     db.update_image_count(image_path, new_count)
-                    # Обрабатываем успешную обработку названия
+                    # Обрабатываем успешную обработку количества
                     await handle_successful_count_update(message, state, data['cq_id'], data['user'], data['chat_ins'],
                                                          data['cq_mes'], new_count, mes_to_del)
                 except Exception as e:
-                    main_menu = kb.create_main_menu(message.from_user.id)
-                    await message.reply(str(e), reply_markup=main_menu)
+                    await message.reply(str(e), reply_markup=kb.collections_menu)
                     await handle_successful_count_update(message, state, data['cq_id'], data['user'], data['chat_ins'],
                                                          data['cq_mes'], new_count, mes_to_del)
             else:

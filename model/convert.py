@@ -58,8 +58,8 @@ class Converter:
         self.pdf.ln(20)  # Добавить отступ после общего количества
 
         for image_paths, title, count in zip(images_list, name_list, count_list):
-            # Разбиение названия на строки, если оно длиннее 10 символов
-            lines = self.split_string(title, 14)
+            # Разбиение названия на строки, если оно длиннее 14 символов
+            lines = self.split_string(str(title[0]), 14)
 
             # Проверка если ширина выходит за границы
             if x + img_w > max_w:
@@ -80,8 +80,7 @@ class Converter:
             self.pdf.set_xy(x-5, y + 30)
             self.pdf.set_font("N", '', 12)
             for line in lines:
-                for char in line:
-                    self.pdf.cell(img_w + margin, 10, char, 0, 2, 'C')
+                self.pdf.cell(img_w + margin, 10, line, 0, 2, 'C')
 
                 # После каждой строки, смещаем y на 10
                 y += 10
