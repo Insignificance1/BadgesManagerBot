@@ -103,7 +103,7 @@ async def edit_image_message(callback_query, images, edit_idx):
         print('[Ошибка] Ничего не поменялось, но на самом деле это не так.')
 
 
-async def delete_old_messages(chat_id: int, messages_to_delete: list):
+async def delete_old_messages(chat_id, messages_to_delete):
     """
     Удаление старых сообщений
     """

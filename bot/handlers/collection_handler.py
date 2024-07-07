@@ -1,14 +1,10 @@
 import asyncio
-import zipfile
-import os
 
 from aiogram import Dispatcher
-from aiogram.types import CallbackQuery, Message, FSInputFile
+from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
-from aiogram.exceptions import TelegramBadRequest
 from aiogram import F
 
-from model.convert import Converter
 import bot.settings.keyboard as kb
 from bot.settings.keyboard import remove_keyboard, format_collection_list
 from bot.settings.states import CollectionStates
@@ -181,7 +177,7 @@ def register_collection_handlers(dp: Dispatcher):
                 db.get_list_collection(user_id), 'add_badges_'), parse_mode='Markdown')
 
     @dp.callback_query(lambda c: c.data.startswith("add_badges_"))
-    async def add_badges_handler(callback_query: CallbackQuery, state: FSMContext) -> None:
+    async def wait_for_badges_handler(callback_query: CallbackQuery, state: FSMContext) -> None:
         """
         Ожидание архива с изображениями для пополнения коллекции
         """
@@ -193,32 +189,22 @@ def register_collection_handlers(dp: Dispatcher):
         await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
 
     @dp.message(F.document, CollectionStates.waiting_for_zip_add)
-    async def get_zip_handler(message: Message, state: FSMContext) -> None:
+    async def add_badges_handler(message: Message, state: FSMContext) -> None:
         """
         Пополнение коллекции
         """
         db.log_user_activity(message.from_user.id, message.message_id)
+        # Подтверждаем получение файла
         await message.reply("Файл получен.", reply_markup=kb.back_menu)
         # Запускаем параллельную задачу для режима ожидания
         task_manager.create_loading_task(message.chat.id, f'task_{message.from_user.id}')
+        # Извлекаем данные из состояния
         data = await state.get_data()
         collection_id = data.get('collection_id')
         collection_name = data.get('collection_name')
         zip_file_id = message.document.file_id
-        try:
-            await collection_service.process_zip_file(
-                zip_file_id=zip_file_id,
-                collection_id=collection_id,
-                user_id=message.from_user.id,
-                reply_func=lambda: message.reply(f"Коллекция '{collection_name}' успешно пополнена.",
-                                                 reply_markup=kb.all_collections_menu)
-            )
-            # Завершаем режим ожидания
-            await task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
-        except Exception as e:
-            await message.reply(f"Ошибка при пополнении коллекции: {e}.", reply_markup=kb.all_collections_menu)
-            await task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
-        await state.set_state(CollectionStates.collections)
+        # Обрабатываем архив
+        await collection_service.handle_zip_processing(message, collection_id, collection_name, zip_file_id, state)
 
     @dp.message(F.text == "Вывести недостающие значки", CollectionStates.collections)
     async def null_badges_list_handler(message: Message, state: FSMContext) -> None:
@@ -236,6 +222,7 @@ def register_collection_handlers(dp: Dispatcher):
         """
         db.log_user_activity(message.from_user.id, message.message_id)
         user_id = message.from_user.id
+        await remove_keyboard(message)
         await message.answer("*Выберите коллекцию для выгрузки в PDF*\n",
                              reply_markup=await format_collection_list(db.get_list_collection(user_id),
                                                                        'pdf_collection_'),
@@ -248,49 +235,29 @@ def register_collection_handlers(dp: Dispatcher):
         """
         db.log_user_activity(message.from_user.id, message.message_id)
         user_id = message.from_user.id
+        await remove_keyboard(message)
         await message.answer("*Выберите коллекцию для выгрузки в PDF*\n",
                              reply_markup=await format_collection_list(db.get_list_collection(user_id), 'pdf_null_'),
                              parse_mode='Markdown')
 
     @dp.callback_query(lambda c: c.data.startswith("pdf_collection_") or c.data.startswith("pdf_favorite_") or
                                  c.data.startswith("pdf_null_"))
-    async def send_pdf(callback_query: CallbackQuery):
+    async def send_pdf(callback_query: CallbackQuery, state: FSMContext) -> None:
         """
         Выгрузка в PDF-файл выбранной коллекции
         """
         db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
-        # Запускаем параллельную задачу для режима ожидания
         task_manager.create_loading_task(callback_query.message.chat.id, f'task_{callback_query.from_user.id}')
+
         loop = asyncio.get_running_loop()
-        # Получаем id и название коллекции
-        type_id = 3
-        if callback_query.data.startswith("pdf_null_"):
-            type_id = 3
-            null_or_all_images = db.get_null_badges
-            is_all_count = False
-        else:
-            null_or_all_images = db.get_all_images
-            is_all_count = True
-            if callback_query.data.startswith("pdf_favorite_"):
-                type_id = 2
-            else:
-                type_id = 1
+        type_id, null_or_all_images, is_all_count = collection_service.determine_type_and_images(callback_query.data)
         collection_id, name = await get_collection_id_and_name(callback_query, type_id=type_id)
-        # Запрашиваем список путей всех изображений которых 0 или просто всех
-        images_list = await loop.run_in_executor(executor, null_or_all_images, collection_id)
-        count_list = await loop.run_in_executor(executor, db.get_list_count, collection_id, is_all_count)
-        name_list = await loop.run_in_executor(executor, db.get_all_name, collection_id, is_all_count)
-        converter = Converter()
-        # Конвертируем изображения в один PDF-файл
-        pdf_path = await loop.run_in_executor(executor, converter.convert_to_pdf_ext, name, collection_id,
-                                              images_list, name_list, count_list)
-        # Отправляем файл пользователю
-        pdf = FSInputFile(pdf_path)
+
+        images_list, count_list, name_list = await collection_service.fetch_collection_data(loop,
+                                                                                            null_or_all_images,
+                                                                                            collection_id,
+                                                                                            is_all_count)
+        pdf_path = await collection_service.convert_to_pdf(loop, name, collection_id, images_list, name_list, count_list)
+
+        await collection_service.send_pdf_to_user(callback_query, state, pdf_path)
         await task_manager.cancel_task_by_name(f'task_{callback_query.from_user.id}')
-        try:
-            await bot.delete_message(chat_id=callback_query.message.chat.id,
-                                     message_id=callback_query.message.message_id)
-            await bot.send_document(chat_id=callback_query.message.chat.id, document=pdf, reply_markup=kb.back_menu)
-            os.remove(pdf_path)
-        except TelegramBadRequest:
-            raise Exception("Что-то пошло не так. Вероятно, кнопка была нажата несколько раз.")

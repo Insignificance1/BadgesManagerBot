@@ -8,7 +8,7 @@ from aiogram.fsm.context import FSMContext
 import bot.settings.keyboard as kb
 from bot.settings.keyboard import create_rotate_keyboard, remove_keyboard
 from bot.settings.states import PhotoStates
-from bot.settings.variables import bot, segmenter, executor
+from bot.settings.variables import bot, segmenter, db, executor
 from bot.services.task_manager import task_manager
 
 
@@ -23,6 +23,7 @@ def register_photo_handlers(dp: Dispatcher):
         """
         Ожидание отправки фото
         """
+        db.log_user_activity(message.from_user.id, message.message_id)
         await message.answer("Пожалуйста, отправьте фото.", reply_markup=kb.back_menu)
         await state.set_state(PhotoStates.waiting_for_photo)
 
@@ -31,6 +32,7 @@ def register_photo_handlers(dp: Dispatcher):
         """
         Закачка полученного фото
         """
+        db.log_user_activity(message.from_user.id, message.message_id)
         photo_id, image_path = await photo_service.download_photo(message)
         await photo_service.update_state_and_reply(message, state, photo_id, image_path)
 
@@ -39,6 +41,7 @@ def register_photo_handlers(dp: Dispatcher):
         """
         Подсчёт количества значков на фото
         """
+        db.log_user_activity(message.from_user.id, message.message_id)
         data = await state.get_data()
         photo_id = data.get('photo_id')
         image_path = data.get('image_path')
@@ -60,6 +63,7 @@ def register_photo_handlers(dp: Dispatcher):
         """
         Нарезка фото на отдельные значки
         """
+        db.log_user_activity(message.from_user.id, message.message_id)
         data = await state.get_data()
         image_path = data.get('image_path')
         photo_id = data.get('photo_id')
@@ -89,6 +93,7 @@ def register_photo_handlers(dp: Dispatcher):
         """
         Подготовка к выравниванию изображений
         """
+        db.log_user_activity(message.from_user.id, message.message_id)
         data = await state.get_data()
         photo_id = data.get('photo_id')
         num_objects = data.get('num_objects')
@@ -110,6 +115,7 @@ def register_photo_handlers(dp: Dispatcher):
         """
         Выравнивание изображений
         """
+        db.log_user_activity(message.from_user.id, message.message_id)
         data = await state.get_data()
         photo_id = data.get('photo_id')
         edit_idx = data.get('edit_idx')
@@ -140,6 +146,7 @@ def register_photo_handlers(dp: Dispatcher):
         """
         Продолжение после получения значков после нарезки
         """
+        db.log_user_activity(message.from_user.id, message.message_id)
         await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
         await message.answer("Коллекция полная?", reply_markup=kb.yes_no_menu)
         await state.set_state(PhotoStates.yes_or_no)
@@ -149,6 +156,7 @@ def register_photo_handlers(dp: Dispatcher):
         """
         Обработка для полной коллекции после нарезки
         """
+        db.log_user_activity(message.from_user.id, message.message_id)
         await state.set_state(PhotoStates.all_collection_create)
         await message.answer("Введите название коллекции.", reply_markup=kb.back_menu)
 
@@ -157,6 +165,7 @@ def register_photo_handlers(dp: Dispatcher):
         """
         Создание коллекции после нарезки
         """
+        db.log_user_activity(message.from_user.id, message.message_id)
         task_manager.create_loading_task(message.chat.id, f'task_{message.from_user.id}')
         main_menu = kb.create_main_menu(message.from_user.id)
         data = await state.get_data()
@@ -183,6 +192,7 @@ def register_photo_handlers(dp: Dispatcher):
         """
         Обработка неполной коллекции после нарезки
         """
+        db.log_user_activity(message.from_user.id, message.message_id)
         task_manager.create_loading_task(message.chat.id, f'task_{message.from_user.id}')
 
         data = await state.get_data()

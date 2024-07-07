@@ -1,2 +1,2 @@
 TOKEN = "7254429196:AAHaw2VcRKketYA2jnYG891vK3W6ctae8es"
-MODEL_PATH = ('../v2-430photo-5ep.pt')
+MODEL_PATH = '../v2-430photo-5ep.pt'

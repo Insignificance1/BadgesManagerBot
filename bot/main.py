@@ -13,7 +13,7 @@ from numpy.compat import long
 
 from bot.settings import keyboard
 from bot.settings.states import ManagerStates, CollectionStates, States
-from bot.settings.keyboard import remove_keyboard, format_collection_list
+from bot.settings.keyboard import remove_keyboard, format_collection_list, format_collection_list_id, format_image_list
 from services.other_service import get_collection_id_and_name
 from services.task_manager import task_manager
 from services.statistics_service import generate_user_statistics
