@@ -78,8 +78,8 @@ favorite_collections_menu = ReplyKeyboardMarkup(
 all_collections_menu = ReplyKeyboardMarkup(
     keyboard=[
         [
-            KeyboardButton(text="Изменить название"),
-            KeyboardButton(text="Посмотреть коллекцию")
+            KeyboardButton(text="Посмотреть коллекцию"),
+            KeyboardButton(text="Изменить название")
         ],
         [
             KeyboardButton(text="Пополнить коллекцию"),

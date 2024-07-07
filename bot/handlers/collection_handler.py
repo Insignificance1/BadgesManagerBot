@@ -15,7 +15,7 @@ from bot.services.task_manager import task_manager
 
 def register_collection_handlers(dp: Dispatcher):
     """
-    Редактирование изображений
+    Редактирование всех коллекций
     """
     import bot.services.collection_service as collection_service
 
@@ -105,6 +105,19 @@ def register_collection_handlers(dp: Dispatcher):
         # Завершаем режим ожидания
         await task_manager.cancel_task_by_name(f'task_{callback_query.from_user.id}')
 
+    @dp.message(F.text == "Посмотреть коллекцию", CollectionStates.collections)
+    async def show_handler(message: Message, state: FSMContext) -> None:
+        """
+        Просмотр коллекции
+        """
+        db.log_user_activity(message.from_user.id, message.message_id)
+        user_id = message.from_user.id
+        await remove_keyboard(message)
+        await state.update_data(edit_idx=0)
+        await message.reply(
+            "*Выберите коллекцию для её просмотра*\n", reply_markup=await format_collection_list(
+                db.get_list_collection(user_id), 'show_collection_'), parse_mode='Markdown')
+
     @dp.message(F.text == "Изменить название", CollectionStates.collections)
     async def send_name_handler(message: Message) -> None:
         """
@@ -126,8 +139,7 @@ def register_collection_handlers(dp: Dispatcher):
         db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
         type_id = 2 if callback_query.data.startswith("name_favorite_") else 1
         collection_id, name = await get_collection_id_and_name(callback_query, type_id=type_id)
-        await callback_query.message.answer("Просим вас ввести новое название для коллекции.",
-                                            reply_markup=kb.back_menu)
+        await callback_query.message.answer("Просим вас ввести новое название для коллекции.")
         await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
         await state.update_data(collection_id=collection_id)
         await state.set_state(CollectionStates.waiting_for_name_collection)
@@ -145,25 +157,11 @@ def register_collection_handlers(dp: Dispatcher):
         try:
             # Обновляем название коллекции
             reply = db.update_collection_name(user_id, new_name, collection_id)
-            await message.reply(reply, reply_markup=kb.all_collections_menu)
+            await message.reply(reply, reply_markup=kb.collections_menu)
             await state.clear()
-            await state.set_state(CollectionStates.collections)
         except Exception as e:
             await message.reply(str(e) + '\nПопробуйте ещё раз.')
             await CollectionStates.waiting_for_name_collection.set()
-
-    @dp.message(F.text == "Посмотреть коллекцию", CollectionStates.collections)
-    async def show_handler(message: Message, state: FSMContext) -> None:
-        """
-        Просмотр коллекции
-        """
-        db.log_user_activity(message.from_user.id, message.message_id)
-        user_id = message.from_user.id
-        await remove_keyboard(message)
-        await state.update_data(edit_idx=0)
-        await message.reply(
-            "*Выберите коллекцию для её просмотра*\n", reply_markup=await format_collection_list(
-                db.get_list_collection(user_id), 'show_collection_'), parse_mode='Markdown')
 
     @dp.message(F.text == "Пополнить коллекцию", CollectionStates.collections)
     async def add_handler(message: Message) -> None:

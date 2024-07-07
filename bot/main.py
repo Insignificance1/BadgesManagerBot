@@ -12,22 +12,22 @@ from aiogram.types import FSInputFile
 from numpy.compat import long
 
 from bot.settings import keyboard
-from bot.settings.states import ManagerStates, CollectionStates, States
-from bot.settings.keyboard import remove_keyboard, format_collection_list, format_collection_list_id, format_image_list
-from services.other_service import get_collection_id_and_name
-from services.task_manager import task_manager
+from bot.settings.states import ManagerStates, States
+from bot.settings.keyboard import remove_keyboard, format_collection_list_id, format_image_list
 from services.statistics_service import generate_user_statistics
-from bot.settings.variables import bot, dp, db, executor
+from bot.settings.variables import bot, dp, db
 
 from handlers.image_handler import register_image_handlers
 from handlers.instruction_handler import register_instruction_handlers
 from handlers.photo_handler import register_photo_handlers
 from handlers.collection_handler import register_collection_handlers
+from handlers.favorite_handler import register_favorite_handlers
 
 register_image_handlers(dp)
 register_instruction_handlers(dp)
 register_photo_handlers(dp)
 register_collection_handlers(dp)
+register_favorite_handlers(dp)
 
 
 # Настройка логирования
@@ -248,92 +248,6 @@ async def all_time_handler(message: Message, state: FSMContext) -> None:
     await bot.send_photo(chat_id=message.chat.id, photo=graphic, reply_markup=keyboard.manager_function_menu)
     await state.clear()
     await state.set_state(ManagerStates.manager)
-
-
-# Выбор действия над избранными коллекциями
-@dp.message(F.text == "Избранное")
-async def favourites_list_handler(message: Message, state: FSMContext) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    await message.answer('Выберите желаемое действие над избранными коллекциями.',
-                         reply_markup=keyboard.favorite_collections_menu)
-    await state.set_state(CollectionStates.favorites)
-
-
-# Выбор избранной коллекции для выгрузки в PDF-файл
-@dp.message(F.text == "Выгрузить в PDF", CollectionStates.favorites)
-async def pdf_collections_handler(message: Message) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    user_id = message.from_user.id
-    await message.answer("*Выберите избранную коллекцию для выгрузки в PDF*\n",
-                         reply_markup=await format_collection_list(db.get_list_favorites(user_id), 'pdf_favorite_'),
-                         parse_mode='Markdown')
-
-
-# Выбор избранной коллекции для смены названия
-@dp.message(F.text == "Изменить название", CollectionStates.favorites)
-async def send_name_handler(message: Message) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    user_id = message.from_user.id
-    await remove_keyboard(message)
-    await message.answer("*Выберите избранную коллекцию для смены её названия*\n",
-                         reply_markup=await format_collection_list(db.get_list_favorites(user_id), 'name_favorite_'),
-                         parse_mode='Markdown')
-
-
-# Просмотр избранной коллекции
-@dp.message(F.text == "Посмотреть избранное")
-async def show_handler(message: Message) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    user_id = message.from_user.id
-    await remove_keyboard(message)
-    await message.reply(
-        "*Выберите избранную коллекцию для её просмотра*\n", reply_markup=await format_collection_list(
-            db.get_list_favorites(user_id), 'show_favorite_'), parse_mode='Markdown')
-
-
-# Выбор коллекции для добавления в избранное
-@dp.message(F.text == "Добавить в избранное")
-async def add_favorites_list_handler(message: Message) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    user_id = message.from_user.id
-    await message.reply(
-        "*Выберите коллекцию для добавления в избранное*\n", reply_markup=await format_collection_list(
-            db.get_list_favorites(user_id, False), 'add_favorite_'), parse_mode='Markdown')
-    await remove_keyboard(message)
-
-
-# Выбор коллекции для удаления из избранного
-@dp.message(F.text == "Удалить из избранного")
-async def del_favorites_list_handler(message: Message) -> None:
-    db.log_user_activity(message.from_user.id, message.message_id)
-    user_id = message.from_user.id
-    await message.reply(
-        "*Выберите коллекцию для удаления из избранного*\n", reply_markup=await format_collection_list(
-            db.get_list_favorites(user_id), "delete_favorite_"), parse_mode='Markdown')
-    await remove_keyboard(message)
-
-
-# Изменение флага избранности для выбранной коллекции
-@dp.callback_query(lambda c: c.data.startswith("add_favorite_") or c.data.startswith("delete_favorite_"))
-async def edit_favorite_handler(callback_query: CallbackQuery) -> None:
-    db.log_user_activity(callback_query.from_user.id, callback_query.inline_message_id)
-    # Запускаем параллельную задачу для режима ожидания
-    task_manager.create_loading_task(callback_query.message.chat.id, f'task_{callback_query.from_user.id}')
-    loop = asyncio.get_running_loop()
-    # Получаем id и название коллекции
-    is_favorite = callback_query.data.startswith("add_favorite_")
-    type_id = 3 if is_favorite else 2
-    collection_id, name = await get_collection_id_and_name(callback_query, loop, type_id)
-    # Меняем флаг избранности
-    await loop.run_in_executor(executor, db.edit_favorites, collection_id, is_favorite)
-    await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
-    if is_favorite:
-        await callback_query.message.answer(f"Коллекция {name} успешно добавлена в избранное.",
-                                            reply_markup=keyboard.favorite_collections_menu)
-    else:
-        await callback_query.message.answer(f"Коллекция {name} удалена из избранного.",
-                                            reply_markup=keyboard.favorite_collections_menu)
-    task_manager.cancel_task_by_name(f'task_{callback_query.from_user.id}')
 
 
 # Начало поиска коллекций и значков
