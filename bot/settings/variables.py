@@ -6,6 +6,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 bot = Bot(token=config.TOKEN)
 dp = Dispatcher()
-segmenter = Detector(model_path='../../v3-965photo-100ep.pt')
+detector = Detector(model_path='../../v3-965photo-100ep.pt')
 db = DataBase()
 executor = ThreadPoolExecutor()

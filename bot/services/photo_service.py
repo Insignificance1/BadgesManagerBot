@@ -8,7 +8,7 @@ from model.convert import Converter
 import bot.settings.keyboard as kb
 from bot.settings.keyboard import create_rotate_keyboard
 from bot.settings.states import PhotoStates
-from bot.settings.variables import bot, db, segmenter, executor
+from bot.settings.variables import bot, db, detector, executor
 
 
 async def download_photo(message):
@@ -37,7 +37,7 @@ async def count_objects(image_path):
     Подсчёт объектов на фото
     """
     loop = asyncio.get_running_loop()
-    num_objects = await loop.run_in_executor(None, segmenter.get_count, image_path)
+    num_objects = await loop.run_in_executor(None, detector.get_count, image_path)
     return num_objects
 
 

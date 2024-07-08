@@ -8,7 +8,7 @@ from aiogram.fsm.context import FSMContext
 import bot.settings.keyboard as kb
 from bot.settings.keyboard import create_rotate_keyboard, remove_keyboard
 from bot.settings.states import PhotoStates
-from bot.settings.variables import bot, segmenter, db, executor
+from bot.settings.variables import bot, db, executor, detector
 from bot.services.task_manager import task_manager
 
 
@@ -71,7 +71,7 @@ def register_photo_handlers(dp: Dispatcher):
         # Запускаем параллельную задачу для режима ожидания
         task_manager.create_loading_task(message.chat.id, f'task_{message.from_user.id}')
         loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(executor, segmenter.segment_image, image_path, photo_id)
+        result = await loop.run_in_executor(executor, detector.detect_image, image_path, photo_id)
         num_objects = result
         # Завершаем режима ожидания
         await task_manager.cancel_task_by_name(f'task_{message.from_user.id}')
