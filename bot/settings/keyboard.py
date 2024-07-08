@@ -188,7 +188,6 @@ def create_main_menu(user_id):
     """
     # Получаем роль пользователя
     role = db.get_role(user_id)
-    print(role)
 
     # Создаем основное меню
     keyboard = [
