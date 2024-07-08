@@ -8,7 +8,7 @@ from aiogram.fsm.context import FSMContext
 import bot.settings.keyboard as kb
 from bot.settings.keyboard import create_rotate_keyboard, remove_keyboard
 from bot.settings.states import PhotoStates
-from bot.settings.variables import bot, db, executor, detector
+from bot.settings.variables import bot, detector, db, executor
 from bot.services.task_manager import task_manager
 
 
