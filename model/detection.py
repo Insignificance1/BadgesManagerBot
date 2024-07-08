@@ -67,10 +67,6 @@ class Detector:
             # Добавление дополнительных отступов вокруг минимального квадрата
             final_image = self.add_padding(min_square_image, padding)
             final_image.save(output_image_path)
-        shutil.rmtree('../Photo/cut')
-        shutil.rmtree('../Photo/auto_rotated')
-        shutil.rmtree('../Photo/original')
-
         return num_objects
 
     def add_padding(self, image, padding):
