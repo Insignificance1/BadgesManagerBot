@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 from aiogram import types
 from aiogram.types import FSInputFile
@@ -17,6 +18,7 @@ async def download_photo(message):
     """
     photo_id = message.photo[-1]
     file_info = await bot.get_file(photo_id.file_id)
+    os.makedirs('../Photo/original/', exist_ok=True)
     image_path = f"../Photo/original/{photo_id.file_id}.jpg"
     await bot.download_file(file_path=file_info.file_path, destination=image_path)
     return photo_id, image_path
