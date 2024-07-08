@@ -191,12 +191,14 @@ def create_main_menu(user_id):
 
     # Создаем основное меню
     keyboard = [
-        [KeyboardButton(text="Поиск")],
         [
             KeyboardButton(text="Отправить фото"),
             KeyboardButton(text="Коллекции")
         ],
-        [KeyboardButton(text="Инструкция")]
+        [
+            KeyboardButton(text="Инструкция"),
+            KeyboardButton(text="Поиск")
+        ]
     ]
 
     # Если роль пользователя manager, добавляем кнопку "Выход"
