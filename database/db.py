@@ -193,13 +193,9 @@ class DataBase:
         return self.exec_query(f"""select count from {schema_name}.images where path='{path}'""",
                                "[INFO] Image count was received")
 
-    def get_image(self, id_image):
-        return self.exec_query(f"""select path from {schema_name}.images where (id={id_image})""",
-                               "[INFO] Collection path image", True)
-
-    def get_id_collection_by_image(self, id_image):
-        query = f"""select id_collection from {schema_name}.images where (id={id_image})"""
-        return self.exec_query(query, "[INFO] Getting id_collection by id_image", True)
+    def get_image_path_and_col_id(self, id_image):
+        return self.exec_query(f"""select path, id_collection from {schema_name}.images where (id={id_image})""",
+                               "[INFO] Getting path and id_collection by id_image")
 
     # Изменение флага избранности для выбранной коллекции
     def edit_favorites(self, id_collection, is_favorites):
