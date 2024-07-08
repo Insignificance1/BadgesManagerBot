@@ -231,7 +231,7 @@ class DataBase:
             raise Exception("[Ошибка] Коллекции не существует.")
 
     # Удаление файла по указанному пути
-    def delete_file_by_path(self, path: str):
+    def delete_file_by_path(self, path):
         if os.path.exists(path):
             os.remove(path)
 

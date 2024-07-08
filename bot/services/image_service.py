@@ -59,6 +59,7 @@ async def handle_delete_action(images, edit_idx):
     Удаление изображения
     """
     db.delete_image(images[edit_idx])
+    db.delete_file_by_path(images[edit_idx])
     del images[edit_idx]
     edit_idx = max(edit_idx - 1, 0)
     return edit_idx
