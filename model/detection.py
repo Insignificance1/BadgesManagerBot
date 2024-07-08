@@ -42,7 +42,7 @@ class Detector:
         objects = results[0].boxes
         num_objects = len(objects)
         padding = 15  # отступ для изначального обрезания
-
+        os.makedirs('../Photo/cut/', exist_ok=True)
         image = cv2.imread(image_path)
 
         for idx, box in enumerate(objects):
