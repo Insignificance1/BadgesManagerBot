@@ -109,7 +109,7 @@ def register_photo_handlers(dp: Dispatcher):
         await remove_keyboard(message)
         await bot.send_photo(chat_id=message.chat.id, photo=photo_aligned, reply_markup=edit_keyboard,
                              caption='ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤ')
-        await state.update_data(edit_idx=idx, images=images)
+        await state.update_data(edit_idx=idx, images=images, is_new=True)
 
     @dp.callback_query(lambda c: c.data.startswith('rotate_') and c.data != 'rotate_finish')
     async def process_rotate_callback(callback_query: CallbackQuery, state: FSMContext) -> None:
