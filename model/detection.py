@@ -35,7 +35,7 @@ class Detector:
         # Возвращение количества боксов
         return len(boxes)
 
-    def segment_image(self, image_path, photo_id):
+    def detect_image(self, image_path, photo_id):
         results = self.model(image_path)
         image = Image.open(image_path)
         width, height = image.size
