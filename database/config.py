@@ -1,6 +1,6 @@
-host = "26.170.148.43"
-user = "postgres"
-password = "123"
-db_name = "testpy"
-schema_name = "public"
+host = "localhost"#локально или адресс сети
+user = "postgres"#ваш пользователь
+password = "123"#пароль пользователя
+db_name = "testpy"#название базы данных
+schema_name = "public"#имя схемы стандартное puplic
 port = 5432
