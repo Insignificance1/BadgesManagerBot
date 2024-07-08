@@ -43,13 +43,14 @@ async def count_objects(image_path):
     return num_objects
 
 
-async def handle_others(action, callback_query):
+async def handle_others(action, callback_query, state):
     """
     Обработка других действий (продолжение и выход)
     """
     if action == 'continue':
         await bot.send_message(chat_id=callback_query.message.chat.id, text="Коллекция полная?",
                                reply_markup=kb.yes_no_menu)
+        await state.set_state(PhotoStates.yes_or_no)
     else:
         main_menu = kb.create_main_menu(callback_query.from_user.id)
         await bot.send_message(chat_id=callback_query.message.chat.id, text="Вы вернулись в главное меню.",

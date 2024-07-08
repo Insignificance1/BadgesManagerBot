@@ -128,7 +128,7 @@ def register_photo_handlers(dp: Dispatcher):
         elif action == 'right':
             edit_idx += 1
         elif action in ['continue', 'exit']:
-            await photo_service.handle_others(action, callback_query)
+            await photo_service.handle_others(action, callback_query, state)
             return
         else:
             # Парсим угол поворота

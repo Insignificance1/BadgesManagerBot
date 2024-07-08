@@ -120,7 +120,7 @@ def register_image_handlers(dp: Dispatcher):
             mes_to_del.append(mes.message_id)
 
     async def handle_successful_name_update(message, state, cq_id, user, chat_ins,
-                                             cq_mes, new_name, mes_to_del, images, idx):
+                                            cq_mes, new_name, mes_to_del, images, idx):
         """
         Обработка успешного обновления названия изображения
         """
