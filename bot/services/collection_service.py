@@ -120,6 +120,8 @@ def determine_type_and_images(data):
     """
     Определение типа коллекции и соответствующей функции для получения изображений
     """
+    if data.startswith("pdf_null_"):
+        return 1, db.get_null_badges, False
     type_id = 2 if data.startswith("pdf_favorite_") else 1
     return type_id, db.get_all_images, True
 
