@@ -61,7 +61,7 @@ def extract_images_from_zip(zip_path, zip_file_id):
         images = []
         for idx, file in enumerate(zip_ref.namelist()):
             filename, file_extension = os.path.splitext(file)
-            if file_extension in ['.png', '.jpeg']:
+            if file_extension in ['.png', '.jpeg', '.jpg']:
                 new_filename = f"{zip_file_id}_{idx}{file_extension}"
                 zip_ref.extract(file, '../Photo/noBg/')
                 os.rename(f"../Photo/noBg/{file}", f"../Photo/noBg/{new_filename}")
