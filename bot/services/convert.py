@@ -120,6 +120,6 @@ class Converter:
         with zipfile.ZipFile(zip_path, 'w') as zipf:
             for obj_num in range(num_objects):
                 file_name = f"{photo_id}_{obj_num}.png"
-                file_path = os.path.join(f"../Photo/noBg", file_name)
+                file_path = os.path.join(f"../../Photo/noBg", file_name)
                 if os.path.exists(file_path):
                     zipf.write(file_path, arcname=file_name)

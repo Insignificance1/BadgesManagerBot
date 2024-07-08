@@ -5,7 +5,7 @@ import os
 from aiogram.types import FSInputFile
 from aiogram.exceptions import TelegramBadRequest
 
-from model.convert import Converter
+from bot.services.convert import Converter
 import bot.settings.keyboard as kb
 from bot.settings.states import CollectionStates
 from bot.settings.variables import bot, db, executor

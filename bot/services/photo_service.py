@@ -4,7 +4,7 @@ from aiogram import types
 from aiogram.types import FSInputFile
 
 from model.detection import rotate_image
-from model.convert import Converter
+from bot.services.convert import Converter
 import bot.settings.keyboard as kb
 from bot.settings.keyboard import create_rotate_keyboard
 from bot.settings.states import PhotoStates
