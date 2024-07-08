@@ -125,7 +125,7 @@ def register_statistics_handlers(dp: Dispatcher):
         d_start_date, d_end_date = statistics_service.parse_dates(start_date, end_date)
         is_new_users = await state.get_state() == ManagerStates.input_period_new_users
         if is_new_users:
-            list_date = db.get_users_stats(d_start_date, d_end_date, 0)
+            list_date = db.get_users_stats(d_start_date, d_end_date)
         else:
             list_date = db.get_workload_stats(d_start_date, d_end_date)
 
