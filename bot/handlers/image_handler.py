@@ -107,17 +107,20 @@ def register_image_handlers(dp: Dispatcher):
                 db.update_image_name(image_path, new_name)
                 # Обрабатываем успешную обработку названия
                 await handle_successful_name_update(message, state, data['cq_id'], data['user'], data['chat_ins'],
-                                                    data['cq_mes'], new_name, mes_to_del)
+                                                    data['cq_mes'], new_name, mes_to_del,
+                                                    data['images'], data['edit_idx'])
             except Exception as e:
                 await message.reply(str(e), reply_markup=kb.collections_menu)
                 await handle_successful_name_update(message, state, data['cq_id'], data['user'], data['chat_ins'],
-                                                    data['cq_mes'], new_name, mes_to_del)
+                                                    data['cq_mes'], new_name, mes_to_del,
+                                                    data['images'], data['edit_idx'])
         else:
             mes = await message.reply(
                 "[Ошибка] Неверное название значка. Название должно содержать от 3 до 30 символов.")
             mes_to_del.append(mes.message_id)
 
-    async def handle_successful_name_update(message, state, cq_id, user, chat_ins, cq_mes, new_name, mes_to_del):
+    async def handle_successful_name_update(message, state, cq_id, user, chat_ins,
+                                             cq_mes, new_name, mes_to_del, images, idx):
         """
         Обработка успешного обновления названия изображения
         """
@@ -126,7 +129,8 @@ def register_image_handlers(dp: Dispatcher):
         await process_edit_callback(CallbackQuery(id=cq_id, from_user=user, chat_instance=chat_ins,
                                                   data="photo_newname", message=cq_mes), state)
         await image_service.delete_old_messages(message.chat.id, mes_to_del)
-        await state.update_data(mes_to_del=[])
+        await state.clear()
+        await state.update_data(mes_to_del=[], images=images, edit_idx=idx)
 
     @dp.message(F.text, ImageStates.waiting_for_image_count)
     async def process_new_count(message: types.Message, state: FSMContext) -> None:
@@ -146,11 +150,13 @@ def register_image_handlers(dp: Dispatcher):
                     db.update_image_count(image_path, new_count)
                     # Обрабатываем успешную обработку количества
                     await handle_successful_count_update(message, state, data['cq_id'], data['user'], data['chat_ins'],
-                                                         data['cq_mes'], new_count, mes_to_del)
+                                                         data['cq_mes'], new_count, mes_to_del,
+                                                         data['images'], data['edit_idx'])
                 except Exception as e:
                     await message.reply(str(e), reply_markup=kb.collections_menu)
                     await handle_successful_count_update(message, state, data['cq_id'], data['user'], data['chat_ins'],
-                                                         data['cq_mes'], new_count, mes_to_del)
+                                                         data['cq_mes'], new_count, mes_to_del,
+                                                         data['images'], data['edit_idx'])
             else:
                 mes = await message.reply("[Ошибка] Количество значков должно быть положительным числом.")
                 mes_to_del.append(mes.message_id)
@@ -158,7 +164,8 @@ def register_image_handlers(dp: Dispatcher):
             mes = await message.reply("[Ошибка] Пожалуйста, введите корректное число для количества значков.")
             mes_to_del.append(mes.message_id)
 
-    async def handle_successful_count_update(message, state, cq_id, user, chat_ins, cq_mes, new_count, mes_to_del):
+    async def handle_successful_count_update(message, state, cq_id, user, chat_ins,
+                                             cq_mes, new_count, mes_to_del, images, idx):
         """
         Обработка успешного обновления количества значков
         """
@@ -167,4 +174,5 @@ def register_image_handlers(dp: Dispatcher):
         await process_edit_callback(CallbackQuery(id=cq_id, from_user=user, chat_instance=chat_ins,
                                                   data="photo_newcount", message=cq_mes), state)
         await image_service.delete_old_messages(message.chat.id, mes_to_del)
-        await state.update_data(mes_to_del=[])
+        await state.clear()
+        await state.update_data(mes_to_del=[], images=images, edit_idx=idx)
