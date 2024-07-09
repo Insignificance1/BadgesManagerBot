@@ -8,6 +8,7 @@ from rembg import remove
 from PIL import Image
 
 
+# Вращение изображения
 def rotate_image(image_path, angle):
     if angle == 90 or angle == -90:
         image = Image.open(image_path)
@@ -35,6 +36,8 @@ class Detector:
         # Возвращение количества боксов
         return len(boxes)
 
+
+    #детекция и обрезка фона на изображении
     def detect_image(self, image_path, photo_id):
         results = self.model(image_path)
         image = Image.open(image_path)
@@ -69,6 +72,8 @@ class Detector:
             final_image.save(output_image_path)
         return num_objects
 
+
+    #Увеличение размера изображения
     def add_padding(self, image, padding):
         width, height = image.size
         # Создание нового изображения b более крупного размера
@@ -80,6 +85,8 @@ class Detector:
         new_image.paste(image, (padding, padding))
         return new_image
 
+
+    # Очистка папки cut
     def clear_cut_folder(self):
         cut_folder_path = "../Photo/cut"
         for filename in os.listdir(cut_folder_path):
@@ -90,16 +97,22 @@ class Detector:
             except Exception as e:
                 print(f"Не удалось удалить {file_path}. Причина: {e}")
 
+
+    # Получение площади изображения
     def get_bounding_square(self, image: Image.Image) -> int:
         w, h = image.size
         return max(w, h)
 
+
+    # Обрезка фона(пустого пространства)
     def trim_whitespace(self, img):
         bbox = img.getbbox()
         if bbox:
             img = img.crop(bbox)
         return img
 
+
+    # Вращение изображение до достижения минимальной площади изображения
     def find_minimal_square(self, image: Image.Image):
         os.makedirs('../Photo/auto_rotated/', exist_ok=True)
         min_size = float('inf')
@@ -119,5 +132,7 @@ class Detector:
 
         return optimal_img
 
+
+    #сохранение изображения
     def save_image(self, image: Image.Image, path: str):
         image.save(path)

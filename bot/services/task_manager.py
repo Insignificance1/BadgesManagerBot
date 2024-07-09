@@ -6,10 +6,13 @@ class TaskManager:
     def __init__(self):
         self.tasks = {}
 
+
+    #задача ожидания
     def create_loading_task(self, chat_id, name):
         task = asyncio.create_task(self.send_loading_message(chat_id), name=name)
         self.tasks[name] = task
         return task
+
 
     async def send_loading_message(self, chat_id):
         """
@@ -29,9 +32,13 @@ class TaskManager:
         except asyncio.CancelledError:
             await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
 
+
+    #получение запущенной task
     def get_task_by_name(self, name):
         return self.tasks.get(name)
 
+
+    #остановка task
     async def cancel_task_by_name(self, name):
         task = self.get_task_by_name(name)
         if task:

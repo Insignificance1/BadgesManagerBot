@@ -9,6 +9,8 @@ class DataBase:
     def __init__(self):
         self.connection = 0
 
+
+    #Соединение с бд
     def connect(self):
         try:
             self.connection = ps.connect(
@@ -20,6 +22,7 @@ class DataBase:
             self.connection.autocommit = True
         except Exception as e:
             print(f"[INFO] Error while connecting to PostgreSQL: {e}")
+
 
     # Выполнение SQL-запроса
     def exec_query(self, update, info_message, is_all_strs=False):
@@ -48,6 +51,7 @@ class DataBase:
                 connection.close()
                 print("[INFO] PostgreSQL connection closed")
 
+
     # Добавление нового пользователя
     def add_user(self, id):
         role = 'user'
@@ -55,15 +59,20 @@ class DataBase:
                                           values ('{id}', '{role}')""",
                         "[INFO] User was added", True)
 
+
+    #логирование активности пользователей в бд
     def log_user_activity(self, user_id, message_id):
         self.exec_query(f"""insert into {schema_name}.user_activity (user_id, message_id)
                                           values ('{user_id}', '{message_id}')""",
                         "[INFO] Activity was added", True)
 
+
+    #получение роли пользователя по id
     def get_role(self, id):
         return self.exec_query(
             f"""select role from {schema_name}.users where id={id}""",
             "[INFO] Role list", False)
+
 
     # Вставка изображения
     def insert_image(self, id_user, path, id_collection):
@@ -72,6 +81,7 @@ class DataBase:
             insert into {schema_name}.images (id_user, path, id_collection)
             values ('{id_user}','{path}', '{id_collection}')
             """, "[INFO] Image was added", True)
+
 
     # Добавление коллекции
     def add_collection(self, id_user, name_collection):
@@ -90,6 +100,7 @@ class DataBase:
         else:
             raise Exception("[Ошибка] Неверное название коллекции или коллекция с таким именем уже существует.")
 
+
     # Обновление названия значка
     def update_image_name(self, path, name_badge):
         if 3 <= len(name_badge) <= 30:
@@ -103,6 +114,7 @@ class DataBase:
                 raise Exception("[Ошибка] Произошла ошибка при попытке изменения базы данных.") from e
         else:
             raise Exception("[Ошибка] Неверное название значка.")
+
 
     # Обновление названия коллекции
     def update_collection_name(self, id_user, name_collection, id_collection):
@@ -118,6 +130,7 @@ class DataBase:
         else:
             raise Exception("[Ошибка] Неверное название коллекции или коллекция с таким именем уже существует.")
 
+
     # Обновление количества значков
     def update_image_count(self, path, count):
         try:
@@ -131,6 +144,7 @@ class DataBase:
         except Exception as e:
             raise Exception("[Ошибка] Произошла ошибка при попытке изменения базы данных.") from e
 
+
     # Получение списка всех коллекций пользователя
     def get_list_collection(self, id_user):
         message = self.exec_query(f"""select id, name from {schema_name}.collections where (id_user={id_user})""",
@@ -140,11 +154,15 @@ class DataBase:
         else:
             return message
 
+
+    #Поулчение path всех image в количестве 0 по id_collection
     def get_null_badges(self, id_collection):
         return self.exec_query(
             f"""select path from {schema_name}.images where id_collection={id_collection} and count=0""",
             "[INFO] Collect list null badges", True)
 
+
+    #Получить списка колличества значков
     def get_list_count(self, id_collection, is_all_count):
         if is_all_count:
             return self.exec_query(f"""select count from {schema_name}.images where id_collection={id_collection}""",
@@ -154,6 +172,8 @@ class DataBase:
                 f"""select count from {schema_name}.images where id_collection={id_collection} and count=0""",
                 "[INFO] Collect list count null badges", True)
 
+
+    #Получение name image в коллекции (всех или только тех которых 0)
     def get_all_name(self, id_collection, is_all_count):
         if is_all_count:
             return self.exec_query(f"""select name from {schema_name}.images where id_collection={id_collection}""",
@@ -162,6 +182,7 @@ class DataBase:
             return self.exec_query(
                 f"""select name from {schema_name}.images where id_collection={id_collection} and count=0""",
                 "[INFO] Collect list count null badges", True)
+
 
     # Получение списка всех избранных (или неизбранных) коллекций пользователя
     def get_list_favorites(self, id_user, is_favorites=True):
@@ -173,29 +194,35 @@ class DataBase:
         else:
             return message
 
+
     # Получение списка всех изображений выбранной коллекции
     def get_all_images(self, id_collection):
         return self.exec_query(f"""select path from {schema_name}.images where (id_collection={id_collection})""",
                                "[INFO] Collection list were received", True)
+
 
     # Получение названия изображения по указанному пути
     def get_image_name(self, path):
         return self.exec_query(f"""select name from {schema_name}.images where path='{path}'""",
                                "[INFO] Image name was received")
 
+
     # Получение id изображения по указанному пути
     def get_image_id(self, path):
         return self.exec_query(f"""select id from {schema_name}.images where path='{path}'""",
                                "[INFO] Image name was received")
+
 
     # Получение количества значков по указанному пути
     def get_image_count(self, path):
         return self.exec_query(f"""select count from {schema_name}.images where path='{path}'""",
                                "[INFO] Image count was received")
 
+
     def get_image_path_and_col_id(self, id_image):
         return self.exec_query(f"""select path, id_collection from {schema_name}.images where (id={id_image})""",
                                "[INFO] Getting path and id_collection by id_image")
+
 
     # Изменение флага избранности для выбранной коллекции
     def edit_favorites(self, id_collection, is_favorites):
@@ -203,10 +230,12 @@ class DataBase:
             f"""update {schema_name}.collections set favorites = {is_favorites} where id = {id_collection}""",
             "[INFO] The collection is marked as favorites", False)
 
+
     # Удаление изображения по указанному пути
     def delete_image(self, path):
         self.exec_query(f"""delete from {schema_name}.images where path ='{path}' """,
                         "[INFO] Images were deleted", True)
+
 
     # Удаление коллекции пользователя
     def delete_collection(self, id_user, collection_id):
@@ -230,15 +259,18 @@ class DataBase:
         else:
             raise Exception("[Ошибка] Коллекции не существует.")
 
+
     # Удаление файла по указанному пути
     def delete_file_by_path(self, path):
         if os.path.exists(path):
             os.remove(path)
 
+
     # Проверка наличия коллекции с выбранным id у пользователя
     def contains_collection(self, id_user, collection_id):
         return len(self.exec_query(f"select id from {schema_name}.collections where id={collection_id} "
                                    f"and id_user={id_user}", "[INFO] Return collection"))
+
 
     # Проверка наличия коллекции с выбранными именем у пользователя
     def contains_collection_name(self, id_user, name):
@@ -247,11 +279,13 @@ class DataBase:
             "[INFO] Checking for existence of collection name", True)
         return len(result)
 
+
     # Подсчёт коллекций пользователя
     def count_user_collections(self, id_user):
         result = self.exec_query(f"select count(*) from {schema_name}.collections where id_user={id_user}",
                                  "[INFO] Counting collections for user", True)
         return len(result)
+
 
     # время регистрации юзера
     def get_users_stats(self, start_date, end_date):
@@ -260,11 +294,14 @@ class DataBase:
             WHERE created_at BETWEEN ('{start_date}') AND ('{end_date}')
             ORDER BY created_at ASC""", "[INFO] Register stats for users", True)
 
+
+    #Получение времени активности пользователя
     def get_workload_stats(self, start_date, end_date):
         return self.exec_query(f"""SELECT created_at
             FROM {schema_name}.user_activity
             WHERE created_at BETWEEN ('{start_date}') AND ('{end_date}')
             ORDER BY created_at ASC""", "[INFO] Workload stats for users", True)
+
 
     # коллекции по имени
     def get_list_collection_for_name(self, id_user, name):
@@ -276,6 +313,8 @@ class DataBase:
         else:
             return message
 
+
+    # Получение id и name image по name
     def get_all_images_for_name(self, id_user, name):
         message = self.exec_query(
             f"""select id, name from {schema_name}.images where (id_user={id_user} and name ilike '%{name}%')""",
